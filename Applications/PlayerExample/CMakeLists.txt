@@ -3,7 +3,7 @@ juce_generate_juce_header(PlayerExample)
 
 target_sources(PlayerExample
     PRIVATE
-        player_example.cpp)
+        Main.cpp)
 
 target_link_libraries(PlayerExample
     PRIVATE
