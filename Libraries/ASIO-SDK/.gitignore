@@ -1,0 +1,7 @@
+asio
+driver
+host
+*.pdf
+*.txt
+*.zip
+!CMakelists.txt
