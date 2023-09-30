@@ -29,8 +29,8 @@ LONG RegisterAsioDriver (CLSID,char *,char *,char *,char *);
 LONG UnregisterAsioDriver (CLSID,char *,char *);
 
 static LONG findRegPath (HKEY,char *);
-static LONG createRegPath (HKEY,char *,char *);
-static LONG createRegStringValue (HKEY,char *,char *,char *);
+static LONG createRegPath (HKEY,char *,const char *);
+static LONG createRegStringValue (HKEY,char *,const char *,char *);
 static LONG getRegString (HKEY,char *,char *,LPVOID,DWORD);
 static LPKEYLIST findAllSubKeys (HKEY,HKEY,DWORD,char *,LPKEYLIST);
 static LONG deleteRegPath (HKEY,char *,char *);
@@ -195,7 +195,7 @@ static LONG findRegPath (HKEY mainkey,char *szregpath)
 	return rc;
 }
 
-static LONG createRegPath (HKEY mainkey,char *szregpath,char *sznewpath)
+static LONG createRegPath (HKEY mainkey,char *szregpath,const char *sznewpath)
 {
 	HKEY	hkey,hksub;
 	LONG 	cr,rc = -1;
@@ -216,7 +216,7 @@ static LONG createRegPath (HKEY mainkey,char *szregpath,char *sznewpath)
 	return rc;
 }
 
-static LONG createRegStringValue (HKEY mainkey,char *szregpath,char *valname,char *szvalstr)
+static LONG createRegStringValue (HKEY mainkey,char *szregpath,const char *valname,char *szvalstr)
 {
 	LONG	cr,rc = -1;
 	HKEY	hkey;

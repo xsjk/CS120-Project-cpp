@@ -1,14 +1,24 @@
-add_library(ASIO INTERFACE)
+cmake_minimum_required(VERSION 3.15)
+project(ASIO-SDK)
 
-target_include_directories(ASIO INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/common)
+file(GLOB COMMON_SOURCES "common/*.cpp")
+file(GLOB HOST_SOURCES "host/*.cpp")
+file(GLOB HOST_PC_SOURCES "host/pc/*.cpp")
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/common/asiodrvr.cpp")
 
-target_compile_definitions(ASIO 
-    INTERFACE
-        JUCE_USE_WINRT_MIDI=0
-        JUCE_ASIO=1
-        JUCE_WASAPI=0
-        JUCE_DIRECTSOUND=0
-        JUCE_ALSA=0
-        JUCE_JACK=0
-        JUCE_BELA=0
-    )
+# foreach(_source IN ITEMS ${COMMON_SOURCES})
+#     message(STATUS "source: ${_source}")
+# endforeach()
+
+
+# static library
+add_library(ASIO STATIC ${COMMON_SOURCES} ${HOST_SOURCES} ${HOST_PC_SOURCES})
+# add_library(ASIO SHARED ${COMMON_SOURCES} ${HOST_SOURCES} ${HOST_PC_SOURCES})
+
+target_include_directories(ASIO PUBLIC common)
+target_include_directories(ASIO PUBLIC host)
+target_include_directories(ASIO PUBLIC host/pc)
+
+# samples
+add_executable(ASIO-host-sample host/sample/hostsample.cpp)
+target_link_libraries(ASIO-host-sample ASIO)

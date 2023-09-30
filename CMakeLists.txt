@@ -6,5 +6,7 @@ if(NOT MSVC)
     message(FATAL_ERROR "Only MSVC is supported")
 endif()
 
+set(CMAKE_CXX_STANDARD 20)
+
 add_subdirectory(Libraries)
 add_subdirectory(Applications)
