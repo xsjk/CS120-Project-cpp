@@ -42,18 +42,40 @@ class ASIODevice {
     ASIODriverInfo driverInfo;
     ASIOCallbacks callbacks {
         .bufferSwitch = [](long index, ASIOBool) { instance->callback(index); },
-        .sampleRateDidChange = nullptr,
-        .asioMessage = nullptr,
-        .bufferSwitchTimeInfo = nullptr,
+        .sampleRateDidChange = [](ASIOSampleRate) { },
+        .asioMessage = [](long selector, long value, void *, double *) -> long {
+            std::cout << "ASIO message: " << selector << ", " << value << std::endl;
+            switch (selector) {
+                case kAsioSelectorSupported:
+                    if (value == kAsioResetRequest
+                     || value == kAsioEngineVersion
+                     || value == kAsioResyncRequest
+                     || value == kAsioLatenciesChanged
+                     || value == kAsioSupportsInputMonitor
+                     || value == kAsioOverload)
+                        return 1;
+                    break;
+                case kAsioBufferSizeChange: std::cout << "kAsioBufferSizeChange"; instance->restart(); return 1;
+                case kAsioResetRequest:     std::cout << "kAsioResetRequest";     instance->restart(); return 1;
+                case kAsioResyncRequest:    std::cout << "kAsioResyncRequest";    instance->restart(); return 1;
+                case kAsioLatenciesChanged: std::cout << "kAsioLatenciesChanged"; return 1;
+                case kAsioEngineVersion:    return 2;
+                case kAsioSupportsTimeInfo:
+                case kAsioSupportsTimeCode: return 0;
+                case kAsioOverload:         std::cout << "kAsioOverload";         return 0;
+            }
+            return 0;
+        },
+        .bufferSwitchTimeInfo = [](ASIOTime *, long index, ASIOBool) -> ASIOTime * { instance->callback(index); return nullptr; },
     };
-    std::shared_ptr<AudioCallbackHandler> currentCallback;
+    std::shared_ptr<AudioCallbackHandler> callbackHandler;
 
-    std::vector<ASIOBufferInfo> buffer_info;
+    std::vector<ASIOBufferInfo> bufferInfo;
     std::vector<float> buffer;
     std::vector<float *> inBuffers, outBuffers;
 
     long numInputChans = 0, numOutputChans = 0;
-    long minBufferSize = 0, maxBufferSize = 0, currentBlockSizeSamples = 0, bufferGranularity = 0;
+    long bufferSize = 0;
     double currentSampleRate = 0;
 
 public:
@@ -74,26 +96,33 @@ public:
     void open(
         int input_channels = 2,
         int output_channels = 2,
-        double sample_rate = 44100,
-        int buffer_size = 512
+        ASIOSampleRate sample_rate = 44100
     ) {
+
+        long maxInputChannels, maxOutputChannels;
+        CATCH_ERROR(ASIOGetChannels(&maxInputChannels, &maxOutputChannels));
+        if (input_channels > maxInputChannels || output_channels > maxOutputChannels)
+            throw std::runtime_error("Requested number of channels exceeds maximum");
 
         numInputChans = input_channels;
         numOutputChans = output_channels;
 
-        CATCH_ERROR(ASIOGetBufferSize(&minBufferSize, &maxBufferSize, &currentBlockSizeSamples, &bufferGranularity));
-        buffer_info.clear();
+        long minBufferSize, maxBufferSize, granularity;
+        CATCH_ERROR(ASIOGetBufferSize(&minBufferSize, &maxBufferSize, &bufferSize, &granularity));
+        std::cout << "Buffer size: " << bufferSize << " samples" << std::endl;
+
+        bufferInfo.clear();
         inBuffers.clear();
         outBuffers.clear();
         auto totalChans = numInputChans + numOutputChans;
-        buffer.resize(totalChans * currentBlockSizeSamples);
+        buffer.resize(totalChans * bufferSize);
         for (int i = 0; i < numInputChans; ++i) {
-            buffer_info.push_back({ .isInput = true, .channelNum = i });
-            inBuffers.push_back(&buffer[i * currentBlockSizeSamples]);
+            bufferInfo.push_back({ .isInput = true, .channelNum = i });
+            inBuffers.push_back(&buffer[i * bufferSize]);
         }
         for (int i = 0; i < numOutputChans; ++i) {
-            buffer_info.push_back({ .isInput = false, .channelNum = i });
-            outBuffers.push_back(&buffer[(i + numInputChans) * currentBlockSizeSamples]);
+            bufferInfo.push_back({ .isInput = false, .channelNum = i });
+            outBuffers.push_back(&buffer[(i + numInputChans) * bufferSize]);
         }
 
         CATCH_ERROR(ASIOCanSampleRate(sample_rate));
@@ -101,30 +130,38 @@ public:
         CATCH_ERROR(ASIOGetSampleRate(&currentSampleRate));
         std::cout << "Current sample rate: " << currentSampleRate << " Hz" << std::endl;
 
-        CATCH_ERROR(ASIOCreateBuffers(buffer_info.data(), buffer_info.size(), 512, &callbacks));
-        std::cout << "Created " << buffer_info.size() << " buffers" << std::endl;
+        CATCH_ERROR(ASIOCreateBuffers(bufferInfo.data(), bufferInfo.size(), bufferSize, &callbacks));
+        std::cout << "Created " << bufferInfo.size() << " buffers" << std::endl;
         CATCH_ERROR(ASIOStart());
-        std::cout << "Started" << std::endl;
     }
 
-    void start(std::shared_ptr<AudioCallbackHandler> callback) {
-        if (callback) {
-            callback->audioDeviceAboutToStart(this);
+    void start(std::shared_ptr<AudioCallbackHandler> newCallbackHandler) {
+        if (newCallbackHandler) {
+            newCallbackHandler->audioDeviceAboutToStart(this);
             std::lock_guard<std::mutex> lock(callbackLock);
-            currentCallback = callback;
+            callbackHandler = newCallbackHandler;
         }
     }
 
     void stop() {
         std::lock_guard<std::mutex> lock(callbackLock);
-        if (currentCallback != nullptr)
-            currentCallback->audioDeviceStopped();
-        currentCallback = nullptr;
+        if (callbackHandler != nullptr)
+            callbackHandler->audioDeviceStopped();
+        callbackHandler = nullptr;
     }
 
     void close() {
         CATCH_ERROR(ASIOStop());
         CATCH_ERROR(ASIODisposeBuffers());
+    }
+
+    void restart() {
+        std::cout << "Restart" << std::endl;
+        auto oldCallback = callbackHandler;
+        stop();
+        close();
+        open(numInputChans, numOutputChans, currentSampleRate);
+        start(oldCallback);
     }
 
 private:
@@ -133,24 +170,24 @@ private:
         std::lock_guard<std::mutex> lock(callbackLock);
 
         {
-            auto samps = currentBlockSizeSamples;
-            if (currentCallback != nullptr) {
+            auto samps = bufferSize;
+            if (callbackHandler != nullptr) {
                 for (int i = 0; i < inBuffers.size(); ++i)
-                    convertToFloat((int *)buffer_info[i].buffers[bufferIndex], inBuffers[i], 512);
+                    convertToFloat((int *)bufferInfo[i].buffers[bufferIndex], inBuffers[i], bufferSize);
 
-                currentCallback->audioDeviceIOCallback(inBuffers.data(),
+                callbackHandler->audioDeviceIOCallback(inBuffers.data(),
                                                        numInputChans,
                                                        outBuffers.data(),
                                                        numOutputChans,
                                                        samps);
 
                 for (int i = 0; i < outBuffers.size(); ++i)
-                    convertFromFloat(outBuffers[i], (int *)buffer_info[inBuffers.size() + i].buffers[bufferIndex], 512);
+                    convertFromFloat(outBuffers[i], (int *)bufferInfo[inBuffers.size() + i].buffers[bufferIndex], bufferSize);
 
             }
             else {
                 for (int i = 0; i < numOutputChans; ++i)
-                    std::memset(buffer_info[numInputChans + i].buffers[bufferIndex], 0, samps * sizeof(int));
+                    std::memset(bufferInfo[numInputChans + i].buffers[bufferIndex], 0, samps * sizeof(int));
             }
         }
         ASIOOutputReady();
@@ -178,7 +215,6 @@ ASIODevice *ASIODevice::instance = nullptr;
 class SineWave : public AudioCallbackHandler {
 
 public:
-
     void audioDeviceIOCallback(const float *const *inputChannelData, int numInputChannels,
                                float **outputChannelData, int numOutputChannels,
                                int numSamples) override {
@@ -187,7 +223,7 @@ public:
         for (int j = 0; j < numSamples; ++j) {
             auto y = sinf(phase += dphase);
             for (int i = 0; i < numOutputChannels && i < numInputChannels; ++i)
-                outputChannelData[i][j] = inputChannelData[i][j];
+                outputChannelData[i][j] = y;
         }
     }
 
