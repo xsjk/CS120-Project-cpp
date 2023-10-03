@@ -18,7 +18,3 @@ add_library(ASIO STATIC ${COMMON_SOURCES} ${HOST_SOURCES} ${HOST_PC_SOURCES})
 target_include_directories(ASIO PUBLIC common)
 target_include_directories(ASIO PUBLIC host)
 target_include_directories(ASIO PUBLIC host/pc)
-
-# samples
-add_executable(ASIO-host-sample host/sample/hostsample.cpp)
-target_link_libraries(ASIO-host-sample ASIO)
