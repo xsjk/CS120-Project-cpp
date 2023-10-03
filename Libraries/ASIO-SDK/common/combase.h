@@ -254,11 +254,11 @@ public:
     LPFNNewCOMObject m_lpfnNew;
     LPFNInitRoutine  m_lpfnInit;
 
-    BOOL IsClassID(REFCLSID rclsid) const {
+    inline BOOL IsClassID(REFCLSID rclsid) const {
         return (IsEqualCLSID(*m_ClsID,rclsid));
     };
 
-    CUnknown *CreateInstance(LPUNKNOWN pUnk, HRESULT *phr) const {
+    inline CUnknown *CreateInstance(LPUNKNOWN pUnk, HRESULT *phr) const {
         return m_lpfnNew(pUnk, phr);
     };
 };

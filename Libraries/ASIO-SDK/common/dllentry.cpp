@@ -23,8 +23,8 @@
 
 #include <stdio.h>
 
-extern CFactoryTemplate g_Templates[];
-extern int g_cTemplates;
+CFactoryTemplate *g_Templates;
+int g_cTemplates;
 
 HINSTANCE hinstance = 0;
 DWORD	  g_amPlatform;		// VER_PLATFORM_WIN32_WINDOWS etc... (from GetVersionEx)
