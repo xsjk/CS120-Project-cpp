@@ -17,7 +17,7 @@ public:
                                int numSamples) override {
         constexpr float dphase = 2. * std::numbers::pi * 440. / 44100;
         for (int j = 0; j < numSamples; ++j) {
-            auto y = std::sinf(phase += dphase);
+            auto y = std::sinf(phase += dphase) / 5;
             if (phase > 2 * std::numbers::pi)
                 phase -= 2 * std::numbers::pi;
             for (int i = 0; i < numOutputChannels && i < numInputChannels; ++i)
@@ -49,12 +49,17 @@ public:
 int main() {
     ASIODevice asio;
     asio.open(2, 2, 44100);
-    asio.start(std::make_shared<SineWave>());
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    asio.stop();
+    auto sinewave = std::make_shared<SineWave>();
     asio.start(std::make_shared<Recorder>());
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    asio.stop();
+    for (int i=0; i<10; ++i) {
+        std::cout << i << std::endl;
+        if (i%2) {
+            asio.stop(sinewave);
+        } else {
+            asio.start(sinewave);
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
     asio.close();
     return 0;
 }

@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+#include <set>
+#include <unordered_set>
 #include <mutex>
 #include "asiosys.h"
 #include "asiodrvr.h"
@@ -29,11 +31,10 @@ class ASIODevice {
 
     AsioDrivers drivers;
     ASIODriverInfo driverInfo;
-    std::shared_ptr<AudioCallbackHandler> callbackHandler;
-
+    std::unordered_set<std::shared_ptr<AudioCallbackHandler>> callbackHandlers;
     std::vector<ASIOBufferInfo> bufferInfo;
     std::vector<float> buffer;
-    std::vector<float *> inBuffers, outBuffers;
+    std::vector<float *> inBuffers, outBuffers, tmpBuffers;
 
     long numInputChans = 0, numOutputChans = 0;
     long bufferSize = 0;
@@ -43,8 +44,8 @@ public:
     ASIODevice(std::string name = "ASIO4ALL v2");
     ~ASIODevice();
     void open(int input_channels = 2, int output_channels = 2, ASIOSampleRate sample_rate = 44100);
-    void start(std::shared_ptr<AudioCallbackHandler> newCallbackHandler);
-    void stop();
+    void start(const std::shared_ptr<AudioCallbackHandler>&);
+    void stop(const std::shared_ptr<AudioCallbackHandler>&);
     void close();
     void restart();
 
