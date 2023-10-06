@@ -15,7 +15,7 @@ class ASIODevice;
 class AudioCallbackHandler {
 public:
     virtual void audioDeviceIOCallback(const float *const *inputChannelData, int numInputChannels,
-                                       float **outputChannelData, int numOutputChannels,
+                                       float *const *outputChannelData, int numOutputChannels,
                                        int numSamples) = 0;
     virtual void audioDeviceAboutToStart(ASIODevice *);
     virtual void audioDeviceStopped();
@@ -44,8 +44,8 @@ public:
     ASIODevice(std::string name = "ASIO4ALL v2");
     ~ASIODevice();
     void open(int input_channels = 2, int output_channels = 2, ASIOSampleRate sample_rate = 44100);
-    void start(const std::shared_ptr<AudioCallbackHandler>&);
-    void stop(const std::shared_ptr<AudioCallbackHandler>&);
+    void start(const std::shared_ptr<AudioCallbackHandler> &);
+    void stop(const std::shared_ptr<AudioCallbackHandler> &);
     void close();
     void restart();
 

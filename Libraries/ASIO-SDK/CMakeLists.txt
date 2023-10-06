@@ -6,14 +6,7 @@ file(GLOB HOST_SOURCES "host/*.cpp")
 file(GLOB HOST_PC_SOURCES "host/pc/*.cpp")
 list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/common/asiodrvr.cpp")
 
-# foreach(_source IN ITEMS ${COMMON_SOURCES})
-#     message(STATUS "source: ${_source}")
-# endforeach()
-
-
-# static library
-add_library(ASIO STATIC ${COMMON_SOURCES} ${HOST_SOURCES} ${HOST_PC_SOURCES})
-# add_library(ASIO SHARED ${COMMON_SOURCES} ${HOST_SOURCES} ${HOST_PC_SOURCES})
+add_library(ASIO SHARED ${COMMON_SOURCES} ${HOST_SOURCES} ${HOST_PC_SOURCES})
 
 target_include_directories(ASIO PUBLIC common)
 target_include_directories(ASIO PUBLIC host)
