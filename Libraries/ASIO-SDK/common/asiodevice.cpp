@@ -86,7 +86,7 @@ void ASIODevice::open(
     CATCH_ERROR(ASIOStart());
 }
 
-void ASIODevice::start(const std::shared_ptr<AudioCallbackHandler>& handler) {
+void ASIODevice::start(const std::shared_ptr<AudioCallbackHandler> &handler) {
     std::lock_guard<std::mutex> lock(callbackLock);
     callbackHandlers.emplace(handler);
     if (callbackHandlers.contains(handler)) {
@@ -94,7 +94,7 @@ void ASIODevice::start(const std::shared_ptr<AudioCallbackHandler>& handler) {
     }
 }
 
-void ASIODevice::stop(const std::shared_ptr<AudioCallbackHandler>& handler) {
+void ASIODevice::stop(const std::shared_ptr<AudioCallbackHandler> &handler) {
     std::lock_guard<std::mutex> lock(callbackLock);
     if (callbackHandlers.contains(handler)) {
         handler->audioDeviceStopped();
@@ -121,34 +121,28 @@ void ASIODevice::restart() {
 void ASIODevice::callback(long bufferIndex) {
 
     std::lock_guard<std::mutex> lock(callbackLock);
-    {
-        auto samps = bufferSize;
-        for (int i = 0; i < inBuffers.size(); ++i)
-            convertToFloat((int *)bufferInfo[i].buffers[bufferIndex], inBuffers[i], bufferSize);
 
-        bool isFirst = true;
-        for (auto &handler : callbackHandlers) {
-            float ** out = isFirst ? outBuffers.data() : tmpBuffers.data();
-            handler->audioDeviceIOCallback(inBuffers.data(),
-                                           numInputChans,
-                                           out,
-                                           numOutputChans,
-                                           samps);
-            if (isFirst)
-                isFirst = false;
-            else
-                for (int i = 0; i < numOutputChans; ++i)
-                    for (int j = 0; j < samps; ++j) 
-                        outBuffers[i][j] += out[i][j];
-        }
-        for (int i = 0; i < numOutputChans; ++i)
-            convertFromFloat(outBuffers[i], (int *)bufferInfo[inBuffers.size() + i].buffers[bufferIndex], bufferSize);
-            
-        if (callbackHandlers.empty()) {
+    auto samps = bufferSize;
+    for (int i = 0; i < numInputChans; ++i)
+        convertToFloat((int *)bufferInfo[i].buffers[bufferIndex], inBuffers[i], bufferSize);
+
+    auto it = callbackHandlers.begin();
+    if (it != callbackHandlers.end()) {
+        (*it)->audioDeviceIOCallback(inBuffers.data(), numInputChans, outBuffers.data(), numOutputChans, samps);
+        for (++it; it != callbackHandlers.end(); ++it) {
+            (*it)->audioDeviceIOCallback(inBuffers.data(), numInputChans, tmpBuffers.data(), numOutputChans, samps);
             for (int i = 0; i < numOutputChans; ++i)
-                std::memset(bufferInfo[numInputChans + i].buffers[bufferIndex], 0, samps * sizeof(int));
+                for (int j = 0; j < samps; ++j)
+                    outBuffers[i][j] += tmpBuffers[i][j];
         }
     }
+    else {
+        for (int i = 0; i < numOutputChans; ++i)
+            std::memset(outBuffers[i], 0, samps * sizeof(float));
+    }
+    for (int i = 0; i < numOutputChans; ++i)
+        convertFromFloat(outBuffers[i], (int *)bufferInfo[numInputChans + i].buffers[bufferIndex], bufferSize);
+
     ASIOOutputReady();
 }
 
