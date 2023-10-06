@@ -38,9 +38,9 @@ public:
         recordingFile.close();
     }
 
-    void audioDeviceIOCallback(const float* const* inputChannelData, int numInputChannels,
-        float* const* outputChannelData, int numOutputChannels,
-        int numSamples
+    void audioDeviceIOCallback(const float *const *inputChannelData, int numInputChannels,
+                               float *const *outputChannelData, int numOutputChannels,
+                               int numSamples
     ) override {
         for (size_t i = 0; i < numSamples; i++) {
             recordingFile << inputChannelData[0][i] << '\n';
@@ -65,11 +65,11 @@ public:
     PlayAndRecordCallback() {
         // play prepareation
         soundFile.open("sound.txt");
-		float datum;
+        float datum;
         soundData.reserve(DURATION * SAMPLERATE);
         while (soundFile >> datum) {
-			soundData.emplace_back(datum);
-		}
+            soundData.emplace_back(datum);
+        }
         soundFile.close();
         // record preparation
         recordingFile.open("recording.txt");
@@ -79,16 +79,16 @@ public:
         recordingFile.close();
     }
 
-    void audioDeviceIOCallback(const float* const* inputChannelData, int numInputChannels,
-        float* const* outputChannelData, int numOutputChannels,
-        int numSamples
+    void audioDeviceIOCallback(const float *const *inputChannelData, int numInputChannels,
+                               float *const *outputChannelData, int numOutputChannels,
+                               int numSamples
     ) override {
         for (size_t i = 0; i < numSamples && samplesPlayed + i < soundData.size(); i++) {
             outputChannelData[0][i] = amp * soundData[samplesPlayed + i];
         }
-		samplesPlayed += numSamples;
+        samplesPlayed += numSamples;
         for (size_t i = 0; i < numSamples; i++) {
-			recordingData.emplace_back(inputChannelData[0][i]);
+            recordingData.emplace_back(inputChannelData[0][i]);
         }
     }
 
@@ -103,14 +103,14 @@ private:
 
 public:
 
-    void audioDeviceIOCallback(const float* const* inputChannelData, int numInputChannels,
-        float* const* outputChannelData, int numOutputChannels,
-        int numSamples
+    void audioDeviceIOCallback(const float *const *inputChannelData, int numInputChannels,
+                               float *const *outputChannelData, int numOutputChannels,
+                               int numSamples
     ) override {
         for (size_t i = 0; i < numSamples && samplesPlayed + i < recordingData.size(); i++) {
             outputChannelData[0][i] = amp * recordingData[samplesPlayed + i];
         }
-		samplesPlayed += numSamples;
+        samplesPlayed += numSamples;
     }
 
 };
@@ -132,10 +132,10 @@ int main() {
     //------------------ record (may aslo play) -------------------
     // add callback(s) to AudioDeviceManager
 #if CHECK==1
-	asio.start(recordCallback);
+    asio.start(recordCallback);
     std::cout << "recording... ";
 #elif CHECK==2
-	asio.start(playAndRecordCallback);
+    asio.start(playAndRecordCallback);
     std::cout << "playing predifined audio & recording ... ";
 #endif
 
@@ -150,7 +150,7 @@ int main() {
 
     //--------------------------- playback ------------------------
     // add callback to AudioDeviceManager
-	asio.start(playbackCallback);
+    asio.start(playbackCallback);
     std::cout << "playing recorded audio... ";
 
     // wait for DURATION seconds and remove the callback

@@ -13,7 +13,7 @@ class SineWave : public AudioCallbackHandler {
     float phase = 0;
 public:
     void audioDeviceIOCallback(const float *const *inputChannelData, int numInputChannels,
-                               float **outputChannelData, int numOutputChannels,
+                               float *const *outputChannelData, int numOutputChannels,
                                int numSamples) override {
         constexpr float dphase = 2. * std::numbers::pi * 440. / 44100;
         for (int j = 0; j < numSamples; ++j) {
@@ -31,10 +31,10 @@ public:
 class Recorder : public AudioCallbackHandler {
     std::ofstream f;
 public:
-    Recorder(std::string output="recorded.txt") : f(output) {}
+    Recorder(std::string output = "recorded.txt") : f(output) { }
     std::vector<float> recorded;
     void audioDeviceIOCallback(const float *const *inputChannelData, int numInputChannels,
-                               float **outputChannelData, int numOutputChannels,
+                               float *const *outputChannelData, int numOutputChannels,
                                int numSamples) override {
         for (int j = 0; j < numSamples; ++j) {
             f << inputChannelData[0][j] << '\n';
@@ -51,11 +51,12 @@ int main() {
     asio.open(2, 2, 44100);
     auto sinewave = std::make_shared<SineWave>();
     asio.start(std::make_shared<Recorder>());
-    for (int i=0; i<10; ++i) {
+    for (int i = 0; i < 10; ++i) {
         std::cout << i << std::endl;
-        if (i%2) {
+        if (i % 2) {
             asio.stop(sinewave);
-        } else {
+        }
+        else {
             asio.start(sinewave);
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));
