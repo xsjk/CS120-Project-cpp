@@ -5,6 +5,7 @@
 #include <cmath>
 #include <string>
 #include <numbers>
+#include <thread>
 #include "asiosys.h"
 #include "asiodrvr.h"
 #include "asio.h"

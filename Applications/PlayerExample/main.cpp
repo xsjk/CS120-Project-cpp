@@ -3,6 +3,8 @@
 #include <string>
 #include <numbers>
 #include <fstream>
+#include <memory>
+#include <thread>
 #include "asiosys.h"
 #include "asiodrvr.h"
 #include "asio.h"
@@ -17,7 +19,7 @@ public:
                                int numSamples) override {
         constexpr float dphase = 2. * std::numbers::pi * 440. / 44100;
         for (int j = 0; j < numSamples; ++j) {
-            auto y = std::sinf(phase += dphase) / 5;
+            float y = std::sin(phase += dphase) / 5;
             if (phase > 2 * std::numbers::pi)
                 phase -= 2 * std::numbers::pi;
             for (int i = 0; i < numOutputChannels && i < numInputChannels; ++i)

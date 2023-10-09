@@ -1,14 +1,9 @@
-// Audio Stream Input/Output library
 #include <iostream>
 #include <cmath>
-#include <string>
-#include <numbers>
-#include <mutex>
-#include <vector>
+#include <cstring>
 #include "asiosys.h"
 #include "asiodrvr.h"
 #include "asio.h"
-#include "Windows.h"
 #include "asiodevice.h"
 
 #define CATCH_ERROR(API) \
@@ -150,7 +145,7 @@ void ASIODevice::convertFromFloat(const float *src, int *dest, int n) noexcept {
     constexpr float maxVal = 0x7fffffff;
     while (--n >= 0) {
         auto val = maxVal * *src++;
-        *dest++ = round(val < -maxVal ? -maxVal : (val > maxVal ? maxVal : val));
+        *dest++ = std::round(val < -maxVal ? -maxVal : (val > maxVal ? maxVal : val));
     }
 }
 void ASIODevice::convertToFloat(const int *src, float *dest, int n) noexcept {

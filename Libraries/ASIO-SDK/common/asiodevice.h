@@ -2,11 +2,9 @@
 
 #include <string>
 #include <vector>
-#include <set>
 #include <unordered_set>
 #include <mutex>
-#include "asiosys.h"
-#include "asiodrvr.h"
+#include <memory>
 #include "asio.h"
 #include "asiodrivers.h"
 

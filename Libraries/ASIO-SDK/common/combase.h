@@ -184,7 +184,7 @@ private:
     const LPUNKNOWN m_pUnknown; /* Owner of this object */
 
 protected:                      /* So we can override NonDelegatingRelease() */
-    volatile LONG m_cRef;       /* Number of reference counts */
+    LONG m_cRef;       /* Number of reference counts */
 
 public:
 
