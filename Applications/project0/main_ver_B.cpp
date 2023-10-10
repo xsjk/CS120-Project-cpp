@@ -119,7 +119,7 @@ public:
 int main() {
 
     /* Initialize Player */
-    ASIODevice asio;
+    ASIOAudioDevice asio;
     asio.open(2, 2, 44100);
 
     // create callbacks

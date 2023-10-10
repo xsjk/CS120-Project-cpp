@@ -49,18 +49,16 @@ public:
 
 
 int main() {
-    ASIODevice asio;
+    ASIOAudioDevice asio;
     asio.open(2, 2, 44100);
     auto sinewave = std::make_shared<SineWave>();
     asio.start(std::make_shared<Recorder>());
     for (int i = 0; i < 10; ++i) {
         std::cout << i << std::endl;
-        if (i % 2) {
+        if (i % 2)
             asio.stop(sinewave);
-        }
-        else {
+        else
             asio.start(sinewave);
-        }
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     asio.close();

@@ -108,7 +108,7 @@ public:
 
 int main() {
 
-    ASIODevice asio;
+    ASIOAudioDevice asio;
     asio.open(2, 2, 44100);
     auto recordCallback = std::make_shared<RecordCallback>();
     auto playbackCallback = std::make_shared<PlaybackCallback>();
