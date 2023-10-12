@@ -43,7 +43,7 @@ ASIOAudioDevice::~ASIOAudioDevice() {
 void ASIODevice::open(
     int input_channels,
     int output_channels,
-    ASIOSampleRate sample_rate
+    double sample_rate
 ) {
 
     long maxInputChannels, maxOutputChannels;
@@ -82,7 +82,7 @@ void ASIODevice::open(
 void ASIOAudioDevice::open(
     int input_channels,
     int output_channels,
-    ASIOSampleRate sample_rate
+    double sample_rate
 ) {
     ASIODevice::open(input_channels, output_channels, sample_rate);
     inBuffers.clear();
@@ -145,7 +145,6 @@ void ASIODevice::callback(long bufferIndex) {
 
     audioDeviceIOCallback(rawInBuffers.data(), rawOutBuffers.data());
 
-    CATCH_ERROR(ASIOOutputReady());
 }
 
 

@@ -5,7 +5,10 @@
 #include <unordered_set>
 #include <mutex>
 #include <memory>
+#include "asiosys.h"
+#include "asiodrvr.h"
 #include "asio.h"
+#include "asiodevice.h"
 #include "asiodrivers.h"
 
 
@@ -40,13 +43,11 @@ protected:
 public:
     ASIODevice(std::string name = "ASIO4ALL v2");
     ~ASIODevice();
-    void open(int input_channels = 2, int output_channels = 2, ASIOSampleRate sample_rate = 44100);
+    void open(int input_channels = 2, int output_channels = 2, double sample_rate = 44100);
     void close();
     virtual void restart();
-
 protected:
     virtual void audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData) = 0;
-
 private:
     void callback(long index);
 
@@ -62,7 +63,7 @@ class ASIOAudioDevice : public ASIODevice {
 public:
     using ASIODevice::ASIODevice;
     ~ASIOAudioDevice();
-    void open(int input_channels = 2, int output_channels = 2, ASIOSampleRate sample_rate = 44100);
+    void open(int input_channels = 2, int output_channels = 2, double sample_rate = 44100);
     void start(const std::shared_ptr<AudioCallbackHandler> &);
     void stop(const std::shared_ptr<AudioCallbackHandler> &);
     void restart() override;
