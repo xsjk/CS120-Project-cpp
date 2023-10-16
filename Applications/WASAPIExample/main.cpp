@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <queue>
 
-#include "audio_io_project_base.hpp"
 #include "wasapidevice.hpp"
 
 class Test : public WASAPIIOHandler {

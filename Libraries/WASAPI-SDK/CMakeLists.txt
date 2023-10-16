@@ -6,4 +6,4 @@ target_include_directories(WASAPI
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(WASAPI INTERFACE Avrt)
+target_link_libraries(WASAPI INTERFACE Avrt IOHandler)

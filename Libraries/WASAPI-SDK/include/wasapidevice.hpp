@@ -2,6 +2,15 @@
 
 #include "wasapi.hpp"
 
+
+class WASAPIIOHandler {
+  public:
+    virtual void inputCallback(BYTE* pBuffer, std::size_t availableFrameCnt) noexcept = 0;
+    virtual void outputCallback(std::size_t availableFrameCnt, BYTE* pBuffer) noexcept = 0;
+    virtual ~WASAPIIOHandler() {}
+};
+
+
 struct AudioClientHandler {
 
     static WASAPI::DeviceEnumerator pEnumerator;
@@ -11,8 +20,7 @@ struct AudioClientHandler {
     WASAPI::Handle synchronizer;
     AUDCLNT_SHAREMODE shareMode;
 
-    AudioClientHandler(AUDCLNT_SHAREMODE shareMode) :
-        shareMode { shareMode } { }
+    AudioClientHandler(AUDCLNT_SHAREMODE shareMode) : shareMode { shareMode } { }
 
     void set_wave_format(WORD channels, DWORD sampleRate, WORD bitWidth) {
         set_wave_format(WAVEFORMATEX {
@@ -93,7 +101,7 @@ public:
     WASAPIDevice(
         AUDCLNT_SHAREMODE captureMode = AUDCLNT_SHAREMODE_EXCLUSIVE,
         AUDCLNT_SHAREMODE renderMode = AUDCLNT_SHAREMODE_EXCLUSIVE
-    ) noexcept : 
+    ) : 
         recorder { captureMode }, player { renderMode } { }
 
     void open(WORD channels=2, DWORD sampleRate=48000, WORD bitWidth=16) {
@@ -111,7 +119,7 @@ public:
         callbackHandler = nullptr;
     }
 
-    void mainloop() noexcept {
+    void mainloop() {
 
         DWORD waitResults;
         UINT32 numFramesAvailable = 0;

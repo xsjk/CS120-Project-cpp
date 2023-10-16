@@ -1,35 +1,15 @@
 #pragma once
 
-#include <initguid.h>
-#include "audio_io_project_base.hpp"
-
 #include <memory>
-#include <avrt.h>
-#include <minwindef.h>
-#include <mmdeviceapi.h>
-#include <audioclient.h>
 #include <iomanip>
 #include <cstdint>
 #include <iostream>
-#include <sstream>
 
-
-template<typename T>
-inline void format_output_pair(std::ostream &ostream, const char *str, T value, std::size_t len1, std::size_t len2) {
-    ostream << std::setw(len1) << std::setiosflags(std::ios::left) << std::setfill(' ') << str << std::setw(len2) << std::setiosflags(std::ios::left) << std::setfill(' ') << value << std::endl;
-}
-
-std::ostream &operator<<(std::ostream &ostream, const WAVEFORMATEX *wfx) {
-    format_output_pair(ostream, "wFormatTag", wfx->wFormatTag, 20, 10);
-    format_output_pair(ostream, "nChannels", wfx->nChannels, 20, 10);
-    format_output_pair(ostream, "nSamplesPerSec", wfx->nSamplesPerSec, 20, 10);
-    format_output_pair(ostream, "nAvgBytesPerSec", wfx->nAvgBytesPerSec, 20, 10);
-    format_output_pair(ostream, "nBlockAlign", wfx->nBlockAlign, 20, 10);
-    format_output_pair(ostream, "wBitsPerSample", wfx->wBitsPerSample, 20, 10);
-    format_output_pair(ostream, "cbSize", wfx->cbSize, 20, 10);
-    return ostream;
-}
-
+#include <initguid.h>
+#include <minwindef.h>
+#include <mmdeviceapi.h>
+#include <audioclient.h>
+#include <avrt.h>
 
 namespace WASAPI {
 
@@ -38,9 +18,9 @@ namespace WASAPI {
     public:
         HRESULT code;
         Exception(HRESULT code, std::string file, int line) : code { code } {
-            std::stringstream ss;
-            ss << "0x" << std::hex << code << std::dec << " at " << file << ":" << line;
-            msg = ss.str();
+            char s[128];
+            std::sprintf(s, "0x%08x at %s:%d", code, file.c_str(), line);
+            msg = std::string(s);
         }
         const char *what() const noexcept override { return msg.c_str(); }
     };
@@ -49,15 +29,13 @@ namespace WASAPI {
     #define CATCH_ERROR(API) \
         do { \
             auto result = (API); \
-            if (result != S_OK) { \
-                throw Exception(result, __FILE__, __LINE__); \
-            } \
+            if (FAILED(result)) throw Exception(result, __FILE__, __LINE__); \
         } while (0)
 
 
 
     struct COMInitializer {
-        COMInitializer() { CATCH_ERROR(CoInitializeEx(nullptr, 0)); }
+        COMInitializer() noexcept { CoInitializeEx(nullptr, 0); }
         ~COMInitializer() { CoUninitialize(); }
     } comInitializer;
 
@@ -66,7 +44,7 @@ namespace WASAPI {
     protected:
         T *p;
     public:
-        Ptr(T *p = nullptr) : p { p } { }
+        Ptr(T *p = nullptr) noexcept : p { p } { }
         auto get() noexcept { return p; }
         auto &operator=(auto &&o) noexcept { return std::swap(p, o.p), *this; }
         auto operator->() noexcept { return p; }
@@ -80,7 +58,6 @@ namespace WASAPI {
     public:
         using Ptr<T>::Ptr;
         using Ptr<T>::operator=;
-        UniquePtr(const UniquePtr &) = delete;
         auto &operator=(auto &) = delete;
         auto &operator=(const auto &) = delete;
     };
@@ -95,7 +72,7 @@ namespace WASAPI {
         void decrease() noexcept { if (p) p->Release(); }
         void increase() noexcept { if (p) p->AddRef(); }
     public:
-        ~Interface() noexcept { decrease(); }
+        ~Interface() { decrease(); }
         using Ptr<T>::Ptr;
         using Ptr<T>::operator=;
         auto &operator=(const Interface<T> &o) noexcept { return increase(), *this = Interface(p); }
@@ -103,19 +80,18 @@ namespace WASAPI {
 
     class Handle : public UniquePtr<void> {
     public:
-        Handle() = default;
+        Handle() noexcept = default;
         Handle(DWORD dwDesiredAccess) : UniquePtr<void> { CreateEventEx(nullptr, nullptr, 0, dwDesiredAccess) } { }
         ~Handle() { CloseHandle(p); }
         using UniquePtr<void>::operator=;
-        auto &operator=(const Handle &o) = delete;
     };
 
     class WaveFormat : public UniquePtr<WAVEFORMATEX> {
     public:
+        WaveFormat() noexcept = default;
         ~WaveFormat() { CoTaskMemFree(p); }
         using UniquePtr<WAVEFORMATEX>::UniquePtr;
         using UniquePtr<WAVEFORMATEX>::operator=;
-        auto &operator=(const WaveFormat &o) = delete;
     };
 
     class PropertyStore : public Interface<IPropertyStore> {
@@ -130,9 +106,9 @@ namespace WASAPI {
             friend PropertyStore;
             Property(PropertyStore *pStore, PROPERTYKEY key, PROPVARIANT value) : pStore { pStore }, key { key }, value { value } { }
         public:
-            Property(PROPVARIANT value) : value { value } { }
-            ~Property() { CATCH_ERROR(PropVariantClear(&value)); }
-            auto operator=(REFPROPVARIANT propvarIn) & { return value = propvarIn; }
+            Property(PROPVARIANT value) noexcept : value { value } { }
+            ~Property() { PropVariantClear(&value); }
+            auto operator=(REFPROPVARIANT propvarIn) & noexcept { return value = propvarIn; }
             auto operator=(REFPROPVARIANT propvarIn) && { CATCH_ERROR(pStore->p->SetValue(key, propvarIn)); return value = propvarIn; }
         };
 
@@ -231,10 +207,10 @@ namespace WASAPI {
             WaveFormat &waveFormat
         ) {
             REFERENCE_TIME realMinPeriod;
-            for(std::size_t i = 0 ; i < 1000 ; ++i) {
+            for (std::size_t i = 0; i < 1000; ++i) {
                 realMinPeriod = 10000000. / waveFormat->nSamplesPerSec * i;
                 auto code = p->Initialize(AUDCLNT_SHAREMODE_EXCLUSIVE, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, realMinPeriod, realMinPeriod, waveFormat.get(), nullptr);
-                if(SUCCEEDED(code)) {
+                if (SUCCEEDED(code)) {
                     std::cout << "Find a minimum device period in exclusive mode successfully!\n";
                     std::cout << "which is " << realMinPeriod / 10000. << "ms\n";
                     break;

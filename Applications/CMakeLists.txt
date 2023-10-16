@@ -1,7 +1,7 @@
-file(GLOB SUBDIRS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *)
+project(Project)
+add_subdirectory(Project0)
 
-foreach(subdir ${SUBDIRS})
-    if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${subdir})
-        add_subdirectory(${subdir})
-    endif()
-endforeach()
+project(Example)
+add_subdirectory(ASIOExample)
+add_subdirectory(UARTExample)
+add_subdirectory(WASAPIExample)
