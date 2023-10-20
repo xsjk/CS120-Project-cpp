@@ -4,12 +4,17 @@
 #include <iomanip>
 #include <cstdint>
 #include <iostream>
+#include <thread>
+#include <atomic>
+#include <vector>
+#include <functional>
 
 #include <initguid.h>
 #include <minwindef.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <avrt.h>
+
 
 namespace WASAPI {
 
@@ -45,12 +50,13 @@ namespace WASAPI {
         T *p;
     public:
         Ptr(T *p = nullptr) noexcept : p { p } { }
-        auto get() noexcept { return p; }
+        auto get() const noexcept { return p; }
         auto &operator=(auto &&o) noexcept { return std::swap(p, o.p), *this; }
-        auto operator->() noexcept { return p; }
-        auto &operator*() noexcept { return *p; }
+        auto operator->() const noexcept { return p; }
+        auto &operator*() const noexcept { return *p; }
         auto operator&() noexcept { return &p; }
-        operator bool() noexcept { return p; }
+        auto operator&() const noexcept { return &p; }
+        operator bool() const noexcept { return p; }
     };
 
     template<typename T>
@@ -92,6 +98,12 @@ namespace WASAPI {
         ~WaveFormat() { CoTaskMemFree(p); }
         using UniquePtr<WAVEFORMATEX>::UniquePtr;
         using UniquePtr<WAVEFORMATEX>::operator=;
+        inline friend auto &operator<<(auto &s, const WaveFormat &w) {
+            #define PRINT(key) s << std::setw(20) << #key ":" << std::setw(10) << w->key << std::endl
+            PRINT(wFormatTag); PRINT(nChannels); PRINT(nSamplesPerSec); PRINT(nAvgBytesPerSec); PRINT(nBlockAlign); PRINT(wBitsPerSample); PRINT(cbSize);
+            #undef PRINT
+            return s;
+        }
     };
 
     class PropertyStore : public Interface<IPropertyStore> {
@@ -327,6 +339,67 @@ namespace WASAPI {
             IMMDeviceCollection *pCollection = nullptr;
             CATCH_ERROR(p->EnumAudioEndpoints(flow, (DWORD)dwStateMask, &pCollection));
             return DeviceCollection(pCollection);
+        }
+
+    };
+
+    class AvThreadCharacteristicsHandle : public UniquePtr<void> {
+        static int count;
+
+    protected:
+        using UniquePtr<void>::p;
+        DWORD taskIndex = 0;
+
+    public:
+        AvThreadCharacteristicsHandle(const std::string &name)
+            : UniquePtr<void> { AvSetMmThreadCharacteristics(name.c_str(), &taskIndex) }
+        {
+            if (p) ++count;
+        }
+        ~AvThreadCharacteristicsHandle() {
+            if (p) --count, AvRevertMmThreadCharacteristics(p);
+        }
+        using UniquePtr<void>::operator=;
+    };
+
+    int AvThreadCharacteristicsHandle::count = 0;
+
+
+    class EventTrigger {
+
+        std::vector<HANDLE> triggers;
+        std::vector<std::function<void()>> callbacks;
+        std::jthread thread;
+
+    public:
+    
+        void add(const WASAPI::Handle &handle, std::function<void()> callback) {
+            if (!handle) throw std::runtime_error("invalid handle");
+            if (triggers.size() == STATUS_ABANDONED_WAIT_0) 
+                throw std::runtime_error("number of callbacks exceeds");
+            triggers.push_back(handle.get());
+            callbacks.push_back(std::move(callback));
+        }
+
+        void start() {
+            thread = std::jthread { [&]() {
+                while (true) {
+                    auto code = WaitForMultipleObjects(triggers.size(), triggers.data(), FALSE, INFINITE);
+                    switch (code) {
+                    case WAIT_FAILED:
+                        std::cerr << "Wait Failed" << std::endl;
+                        break;
+                    default:
+                        callbacks.at(code - WAIT_OBJECT_0)();
+                        break;
+                    }
+                }
+            } };
+            thread.detach();
+        }
+
+        void stop() {
+            thread = {};
         }
 
     };
