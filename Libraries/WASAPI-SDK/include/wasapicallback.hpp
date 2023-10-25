@@ -1,16 +1,14 @@
 #pragma once
 
 #include "audioiohandler.hpp"
-#include <iostream>
-
 
 namespace WASAPI {
 
     class DataView : public AudioDataView<short> {
         short *data;
     public:
-        DataView(BYTE *pBuffer, size_t bufferSize) :
-            AudioDataView<short>(2, bufferSize),
+        DataView(BYTE *pBuffer, size_t bufferSize, double frequency) :
+            AudioDataView<short>(2, bufferSize, frequency),
             data((short *)pBuffer) { }
 
         FloatView<short> operator()(size_t i, size_t j) noexcept override {

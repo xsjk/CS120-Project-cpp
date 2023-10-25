@@ -24,7 +24,7 @@ public:
 
     void outputCallback(DataView &p) noexcept override {
         for (auto i = 0; i < p.getNumSamples(); i++) {
-            phase += 2 * std::numbers::pi * 440 / 48000;
+            phase += 2 * std::numbers::pi * 440 / p.getFrequency();
             p(0, i) = std::sin(phase);
             p(1, i) = std::sin(phase);
         }

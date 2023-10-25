@@ -29,14 +29,17 @@ template<typename T = int>
 class AudioDataView {
     size_t numChannels;
     size_t numSamples;
+    double frequency;
 public:
-    AudioDataView(size_t numChannels, size_t numSamples) : numChannels(numChannels), numSamples(numSamples) { }
+    AudioDataView(size_t numChannels, size_t numSamples, size_t frequency) : 
+        numChannels(numChannels), numSamples(numSamples), frequency(frequency) { }
 
     virtual FloatView<T> operator()(size_t i, size_t j) noexcept = 0;
     virtual float operator()(size_t i, size_t j) const noexcept = 0;
 
     size_t getNumChannels() const noexcept { return numChannels; }
     size_t getNumSamples() const noexcept { return numSamples; }
+    double getFrequency() const noexcept { return frequency; }
 
 };
 

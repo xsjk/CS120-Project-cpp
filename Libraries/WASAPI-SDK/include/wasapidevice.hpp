@@ -110,14 +110,14 @@ namespace WASAPI {
                     std::cerr << "AUDCLNT_BUFFERFLAGS_SILENT" << std::endl;
                 if (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR)
                     std::cerr << "AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR" << std::endl;
-                WASAPI::DataView view(pData, numFrames);
+                auto view = DataView(pData, numFrames, sampleRate);
                 callbackHandler->inputCallback(view);
                 recorder.client.release_buffer(numFrames);
             });
 
             trigger.add(player.eventHandle, [&] {
                 auto pData = player.client.get_buffer(playerBufferSize);
-                WASAPI::DataView view(pData, playerBufferSize);
+                auto view = DataView(pData, playerBufferSize, sampleRate);
                 callbackHandler->outputCallback(view);
                 player.client.release_buffer(playerBufferSize);
             });

@@ -9,8 +9,8 @@ namespace ASIO {
     class DataView : public AudioDataView<int> {
         int *const *data;
     public:
-        DataView(const int *const *channelData, int channels, int samples) :
-            AudioDataView<int>(channels, samples),
+        DataView(const int *const *channelData, int channels, int samples, double frequency) :
+            AudioDataView<int>(channels, samples, frequency),
             data(const_cast<int* const*>(channelData)) { }
 
         FloatView<int> operator()(size_t i, size_t j) noexcept override {
@@ -25,7 +25,7 @@ namespace ASIO {
 
     struct IOHandler : AudioIOHandler<int> {
         virtual void inputCallback(const AudioDataView<int> &inputData) noexcept {
-            inputCallback((const DataView &)inputData);
+            inputCallback(static_cast<const DataView &>(inputData));
         }
         virtual void outputCallback(AudioDataView<int> &outputData) noexcept {
             inputCallback((DataView &)outputData);
