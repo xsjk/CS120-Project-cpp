@@ -11,44 +11,30 @@
 #include <queue>
 #include <limits>
 #include <valarray>
+#include <thread>
 
 #include "wasapidevice.hpp"
 
+using namespace WASAPI;
 
-class SineWave : public WASAPIIOHandler {
+class SineWave : public IOHandler {
     std::ofstream file;
-    static constexpr std::size_t channel = 2;
-    static constexpr std::size_t sampleRate = 48'000;
-    static constexpr std::size_t bitWidth = 16;
-    static constexpr std::size_t frameBytes = channel * bitWidth / CHAR_BIT;
-
     float phase = 0;
 public:
-    void inputCallback(BYTE *pBuffer, std::size_t availableFrameCnt) noexcept override { }
 
-    void outputCallback(std::size_t availableFrameCnt, BYTE *pBuffer) noexcept override {
-        using T = short;
-        T *p = (T *)pBuffer;
-        constexpr auto a = std::numeric_limits<T>::max();
-        for (auto i = 0; i < availableFrameCnt * frameBytes / sizeof(T); i += 2) {
-            phase += 2 * std::numbers::pi * 440 / sampleRate;
-            p[i] = std::sin(phase) * a;
-            p[i + 1] = 0;
+    void outputCallback(DataView &p) noexcept override {
+        for (auto i = 0; i < p.getNumSamples(); i++) {
+            phase += 2 * std::numbers::pi * 440 / 48000;
+            p(0, i) = std::sin(phase);
+            p(1, i) = std::sin(phase);
         }
     }
 
 };
 
-
-class Recorder : public WASAPIIOHandler {
+class Recorder : public IOHandler {
     std::ofstream file;
-    static constexpr std::size_t channel = 2;
-    static constexpr std::size_t sampleRate = 48'000;
-    static constexpr std::size_t bitWidth = 16;
-    static constexpr std::size_t frameBytes = channel * bitWidth / CHAR_BIT;
-
-    struct chunk_t { BYTE _[32]; };
-    std::queue<chunk_t> data;
+    std::queue<float> data;
 
 public:
 
@@ -56,41 +42,35 @@ public:
         file.open("test.txt");
     }
 
-    void inputCallback(BYTE *pBuffer, std::size_t availableFrameCnt) noexcept override {
-        using T = short;
-        T *p = (T *)pBuffer;
-        for (auto i = 0; i < availableFrameCnt * frameBytes / sizeof(T); i+=2) {
-            file << p[i] << std::endl;
+    void inputCallback(const DataView &inputData) noexcept override {
+        auto availableFrameCnt = inputData.getNumSamples();
+        for (auto i = 0; i < availableFrameCnt; i++) {
+            float v = inputData(0, i);
+            file << v << std::endl;
+            data.push(v);
         }
-
-        for (auto i = 0; i < availableFrameCnt * frameBytes / sizeof(chunk_t); i++) {
-            data.push(((chunk_t *)pBuffer)[i]);
-        }
-
     }
 
-    void outputCallback(std::size_t availableFrameCnt, BYTE *pBuffer) noexcept override {
-        for (auto i = 0; i < availableFrameCnt * frameBytes / sizeof(chunk_t); i++) {
+    void outputCallback(DataView &outputData) noexcept override {
+        for (auto i = 0; i < outputData.getNumSamples(); i++) {
             if (data.empty()) {
                 std::cout << "No more data to play" << std::endl;
                 break;
             }
-            ((chunk_t *)pBuffer)[i] = data.front();
+            outputData(0, i) = data.front();
+            outputData(1, i) = 0;
             data.pop();
         }
-
     }
 
 };
 
-
-
-
 int main() {
     auto p = std::make_shared<Recorder>();
-    WASAPIDevice wasapi;
-    wasapi.open(2, 48000, 16);
-    wasapi.start(p);
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    Device device;
+    device.open();
+    device.start(p);
+    std::this_thread::sleep_for(std::chrono::seconds(3));
     return 0;
+
 }

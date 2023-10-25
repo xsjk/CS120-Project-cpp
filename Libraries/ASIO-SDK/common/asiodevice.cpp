@@ -5,6 +5,7 @@
 #include "asiodrvr.h"
 #include "asio.h"
 #include "asiodevice.h"
+#include "asiocallback.hpp"
 
 #define CATCH_ERROR(API) \
     do { \
@@ -16,176 +17,197 @@
     } while (0)
 
 
-AudioCallbackHandler::~AudioCallbackHandler() = default;
-void AudioCallbackHandler::audioDeviceAboutToStart(ASIODevice *) { }
-void AudioCallbackHandler::audioDeviceStopped() { }
+namespace ASIO {
+
+    AudioCallbackHandler::~AudioCallbackHandler() = default;
+    void AudioCallbackHandler::audioDeviceAboutToStart(Device *) { }
+    void AudioCallbackHandler::audioDeviceStopped() { }
 
 
-ASIODevice::ASIODevice(std::string name) {
-    if (instance != nullptr)
-        throw std::runtime_error("Only one ASIODevice can be created at a time");
-    else
-        instance = this;
-    drivers.loadDriver(name.c_str());
-    CATCH_ERROR(ASIOInit(&driverInfo));
-}
-
-ASIODevice::~ASIODevice() {
-    instance = nullptr;
-}
-
-ASIOAudioDevice::~ASIOAudioDevice() {
-    auto oldCallbackHandler = callbackHandlers;
-    for (auto &handler : oldCallbackHandler)
-        stop(handler);
-}
-
-void ASIODevice::open(
-    int input_channels,
-    int output_channels,
-    double sample_rate
-) {
-
-    long maxInputChannels, maxOutputChannels;
-    CATCH_ERROR(ASIOGetChannels(&maxInputChannels, &maxOutputChannels));
-    if (input_channels > maxInputChannels || output_channels > maxOutputChannels)
-        throw std::runtime_error("Requested number of channels exceeds maximum");
-
-    numInputChans = input_channels;
-    numOutputChans = output_channels;
-
-    long minBufferSize, maxBufferSize, granularity;
-    CATCH_ERROR(ASIOGetBufferSize(&minBufferSize, &maxBufferSize, &bufferSize, &granularity));
-    std::cout << "Buffer size: " << bufferSize << " samples" << std::endl;
-
-    bufferInfo.clear();
-    rawInBuffers.clear();
-    rawOutBuffers.clear();
-    rawInBuffers.resize(numInputChans);
-    rawOutBuffers.resize(numOutputChans);
-    for (int i = 0; i < numInputChans; ++i)
-        bufferInfo.push_back({ .isInput = true, .channelNum = i });
-    for (int i = 0; i < numOutputChans; ++i)
-        bufferInfo.push_back({ .isInput = false, .channelNum = i });
-
-    CATCH_ERROR(ASIOCanSampleRate(sample_rate));
-    CATCH_ERROR(ASIOSetSampleRate(sample_rate));
-    CATCH_ERROR(ASIOGetSampleRate(&currentSampleRate));
-    std::cout << "Current sample rate: " << currentSampleRate << " Hz" << std::endl;
-
-    CATCH_ERROR(ASIOCreateBuffers(bufferInfo.data(), bufferInfo.size(), bufferSize, &callbacks));
-    std::cout << "Created " << bufferInfo.size() << " buffers" << std::endl;
-    CATCH_ERROR(ASIOStart());
-}
-
-
-void ASIOAudioDevice::open(
-    int input_channels,
-    int output_channels,
-    double sample_rate
-) {
-    ASIODevice::open(input_channels, output_channels, sample_rate);
-    inBuffers.clear();
-    outBuffers.clear();
-    tmpBuffers.clear();
-    buffer.resize((numInputChans + numOutputChans * 2) * bufferSize);
-    
-    for (int i = 0; i < numInputChans; ++i) {
-        inBuffers.push_back(&buffer[i * bufferSize]);
+    Device::Device(std::string name) {
+        if (instance != nullptr)
+            throw std::runtime_error("Only one Device can be created at a time");
+        else
+            instance = this;
+        drivers.loadDriver(name.c_str());
+        CATCH_ERROR(ASIOInit(&driverInfo));
     }
-    for (int i = 0; i < numOutputChans; ++i) {
-        outBuffers.push_back(&buffer[(i + numInputChans) * bufferSize]);
-        tmpBuffers.push_back(&buffer[(i + numInputChans + numOutputChans) * bufferSize]);
+
+    Device::~Device() {
+        instance = nullptr;
     }
-}
 
-
-void ASIOAudioDevice::start(const std::shared_ptr<AudioCallbackHandler> &handler) {
-    std::lock_guard<std::mutex> lock(callbackLock);
-    callbackHandlers.emplace(handler);
-    if (callbackHandlers.contains(handler)) {
-        handler->audioDeviceAboutToStart(this);
+    AudioDevice::~AudioDevice() {
+        auto oldCallbackHandler = callbackHandlers;
+        for (auto &handler : oldCallbackHandler)
+            stop(handler);
     }
-}
 
-void ASIOAudioDevice::stop(const std::shared_ptr<AudioCallbackHandler> &handler) {
-    std::lock_guard<std::mutex> lock(callbackLock);
-    if (callbackHandlers.contains(handler)) {
-        handler->audioDeviceStopped();
+    void Device::open(
+        int input_channels,
+        int output_channels,
+        double sample_rate
+    ) {
+
+        long maxInputChannels, maxOutputChannels;
+        CATCH_ERROR(ASIOGetChannels(&maxInputChannels, &maxOutputChannels));
+        if (input_channels > maxInputChannels || output_channels > maxOutputChannels)
+            throw std::runtime_error("Requested number of channels exceeds maximum");
+
+        numInputChans = input_channels;
+        numOutputChans = output_channels;
+
+        long minBufferSize, maxBufferSize, granularity;
+        CATCH_ERROR(ASIOGetBufferSize(&minBufferSize, &maxBufferSize, &bufferSize, &granularity));
+        std::cout << "Buffer size: " << bufferSize << " samples" << std::endl;
+
+        bufferInfo.clear();
+        rawInBuffers.clear();
+        rawOutBuffers.clear();
+        rawInBuffers.resize(numInputChans);
+        rawOutBuffers.resize(numOutputChans);
+        for (int i = 0; i < numInputChans; ++i)
+            bufferInfo.push_back({ .isInput = true, .channelNum = i });
+        for (int i = 0; i < numOutputChans; ++i)
+            bufferInfo.push_back({ .isInput = false, .channelNum = i });
+
+        CATCH_ERROR(ASIOCanSampleRate(sample_rate));
+        CATCH_ERROR(ASIOSetSampleRate(sample_rate));
+        CATCH_ERROR(ASIOGetSampleRate(&currentSampleRate));
+        std::cout << "Current sample rate: " << currentSampleRate << " Hz" << std::endl;
+
+        CATCH_ERROR(ASIOCreateBuffers(bufferInfo.data(), bufferInfo.size(), bufferSize, &callbacks));
+        std::cout << "Created " << bufferInfo.size() << " buffers" << std::endl;
+        CATCH_ERROR(ASIOStart());
     }
-    callbackHandlers.erase(handler);
-}
-
-void ASIODevice::close() {
-    CATCH_ERROR(ASIOStop());
-    CATCH_ERROR(ASIODisposeBuffers());
-}
-
-void ASIODevice::restart() {}
-
-void ASIOAudioDevice::restart() {
-    std::cout << "Restart" << std::endl;
-    auto oldCallbackHandler = callbackHandlers;
-    for (auto &handler : oldCallbackHandler)
-        stop(handler);
-    close();
-    open(numInputChans, numOutputChans, currentSampleRate);
-    for (auto &handler : oldCallbackHandler)
-        start(handler);
-}
-
-void ASIODevice::callback(long bufferIndex) {
-
-    std::lock_guard<std::mutex> lock(callbackLock);
-
-    for (int i = 0; i < numInputChans; ++i)
-        rawInBuffers[i] = (int *)bufferInfo[i].buffers[bufferIndex];
-    for (int i = 0; i < numOutputChans; ++i)
-        rawOutBuffers[i] = (int *)bufferInfo[numInputChans + i].buffers[bufferIndex];
-
-    audioDeviceIOCallback(rawInBuffers.data(), rawOutBuffers.data());
-
-}
 
 
-void ASIOAudioDevice::audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData) {
+    void Device::start(std::shared_ptr<IOHandler> handler) {
+        ioHandler = std::move(handler);
+    }
 
-    for (int i = 0; i < numInputChans; ++i)
-        convertToFloat(inputChannelData[i], inBuffers[i], bufferSize);
+    void Device::stop() {
+        ioHandler = nullptr;
+    }
 
-    auto it = callbackHandlers.begin();
-    if (it != callbackHandlers.end()) {
-        (*it)->audioDeviceIOCallback(inBuffers.data(), numInputChans, outBuffers.data(), numOutputChans, bufferSize);
-        for (++it; it != callbackHandlers.end(); ++it) {
-            (*it)->audioDeviceIOCallback(inBuffers.data(), numInputChans, tmpBuffers.data(), numOutputChans, bufferSize);
-            for (int i = 0; i < numOutputChans; ++i)
-                for (int j = 0; j < bufferSize; ++j)
-                    outBuffers[i][j] += tmpBuffers[i][j];
+    void AudioDevice::open(
+        int input_channels,
+        int output_channels,
+        double sample_rate
+    ) {
+        Device::open(input_channels, output_channels, sample_rate);
+        inBuffers.clear();
+        outBuffers.clear();
+        tmpBuffers.clear();
+        buffer.resize((numInputChans + numOutputChans * 2) * bufferSize);
+        
+        for (int i = 0; i < numInputChans; ++i) {
+            inBuffers.push_back(&buffer[i * bufferSize]);
+        }
+        for (int i = 0; i < numOutputChans; ++i) {
+            outBuffers.push_back(&buffer[(i + numInputChans) * bufferSize]);
+            tmpBuffers.push_back(&buffer[(i + numInputChans + numOutputChans) * bufferSize]);
         }
     }
-    else {
+
+
+    void AudioDevice::start(const std::shared_ptr<AudioCallbackHandler> &handler) {
+        std::lock_guard<std::mutex> lock(callbackLock);
+        callbackHandlers.emplace(handler);
+        if (callbackHandlers.contains(handler)) {
+            handler->audioDeviceAboutToStart(this);
+        }
+    }
+
+    void AudioDevice::stop(const std::shared_ptr<AudioCallbackHandler> &handler) {
+        std::lock_guard<std::mutex> lock(callbackLock);
+        if (callbackHandlers.contains(handler)) {
+            handler->audioDeviceStopped();
+        }
+        callbackHandlers.erase(handler);
+    }
+
+    void Device::close() {
+        CATCH_ERROR(ASIOStop());
+        CATCH_ERROR(ASIODisposeBuffers());
+    }
+
+    void Device::restart() {}
+
+    void AudioDevice::restart() {
+        std::cout << "Restart" << std::endl;
+        auto oldCallbackHandler = callbackHandlers;
+        for (auto &handler : oldCallbackHandler)
+            stop(handler);
+        close();
+        open(numInputChans, numOutputChans, currentSampleRate);
+        for (auto &handler : oldCallbackHandler)
+            start(handler);
+    }
+
+    void Device::callback(long bufferIndex) {
+
+        std::lock_guard<std::mutex> lock(callbackLock);
+
+        for (int i = 0; i < numInputChans; ++i)
+            rawInBuffers[i] = (int *)bufferInfo[i].buffers[bufferIndex];
         for (int i = 0; i < numOutputChans; ++i)
-            std::memset(outBuffers[i], 0, bufferSize * sizeof(float));
+            rawOutBuffers[i] = (int *)bufferInfo[numInputChans + i].buffers[bufferIndex];
+
+        audioDeviceIOCallback(rawInBuffers.data(), rawOutBuffers.data());
+
     }
-    for (int i = 0; i < numOutputChans; ++i)
-        convertFromFloat(outBuffers[i], outputChannelData[i], bufferSize);
 
-}
-
-void ASIOAudioDevice::convertFromFloat(const float *src, int *dest, int n) noexcept {
-    constexpr float maxVal = 0x7fffffff;
-    while (--n >= 0) {
-        auto val = maxVal * *src++;
-        *dest++ = std::round(val < -maxVal ? -maxVal : (val > maxVal ? maxVal : val));
+    void Device::audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData) {
+        if (ioHandler != nullptr) {
+            auto inputData = DataView(inputChannelData, numInputChans, bufferSize);
+            ioHandler->inputCallback(inputData);
+            auto outputData = DataView(outputChannelData, numOutputChans, bufferSize);
+            ioHandler->outputCallback(outputData);
+        }
     }
-}
-void ASIOAudioDevice::convertToFloat(const int *src, float *dest, int n) noexcept {
-    constexpr float g = 1. / 0x7fffffff;
-    while (--n >= 0) *dest++ = g * *src++;
+
+    void AudioDevice::audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData) {
+
+        for (int i = 0; i < numInputChans; ++i)
+            convertToFloat(inputChannelData[i], inBuffers[i], bufferSize);
+
+        auto it = callbackHandlers.begin();
+        if (it != callbackHandlers.end()) {
+            (*it)->audioDeviceIOCallback(inBuffers.data(), numInputChans, outBuffers.data(), numOutputChans, bufferSize);
+            for (++it; it != callbackHandlers.end(); ++it) {
+                (*it)->audioDeviceIOCallback(inBuffers.data(), numInputChans, tmpBuffers.data(), numOutputChans, bufferSize);
+                for (int i = 0; i < numOutputChans; ++i)
+                    for (int j = 0; j < bufferSize; ++j)
+                        outBuffers[i][j] += tmpBuffers[i][j];
+            }
+        }
+        else {
+            for (int i = 0; i < numOutputChans; ++i)
+                std::memset(outBuffers[i], 0, bufferSize * sizeof(float));
+        }
+        for (int i = 0; i < numOutputChans; ++i)
+            convertFromFloat(outBuffers[i], outputChannelData[i], bufferSize);
+
+    }
+
+    void AudioDevice::convertFromFloat(const float *src, int *dest, int n) noexcept {
+        constexpr float maxVal = 0x7fffffff;
+        while (--n >= 0) {
+            auto val = maxVal * *src++;
+            *dest++ = std::round(val < -maxVal ? -maxVal : (val > maxVal ? maxVal : val));
+        }
+    }
+    void AudioDevice::convertToFloat(const int *src, float *dest, int n) noexcept {
+        constexpr float g = 1. / 0x7fffffff;
+        while (--n >= 0) *dest++ = g * *src++;
+    }
+
+    Device *Device::instance = nullptr;
+
 }
 
-ASIODevice *ASIODevice::instance = nullptr;
-ASIOCallbacks ASIODevice::callbacks {
+ASIOCallbacks ASIO::Device::callbacks {
     .bufferSwitch = [](long index, ASIOBool) { instance->callback(index); },
     .sampleRateDidChange = [](ASIOSampleRate) { },
     .asioMessage = [](long selector, long value, void *, double *) -> long {

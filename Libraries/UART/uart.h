@@ -8,7 +8,7 @@
 #include <queue>
 
 
-class BitstreamDevice : public ASIODevice {
+class BitstreamDevice : public ASIO::Device {
     std::vector<bool> inputChannelDataBool;
     std::vector<bool> outputChannelDataBool;
 

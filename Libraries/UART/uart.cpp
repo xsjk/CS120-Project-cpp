@@ -10,7 +10,7 @@ void BitstreamDevice::audioDeviceIOCallback(const int *const *inputChannelData, 
 }
 
 void BitstreamDevice::open() {
-    ASIODevice::open(1, 1, 44100);
+    ASIO::Device::open(1, 1, 44100);
     inputChannelDataBool.resize(bufferSize);
     outputChannelDataBool.resize(bufferSize);
 }

@@ -25,7 +25,7 @@ static std::vector<float> recordingData;
 
 
 // record sound
-class RecordCallback : public AudioCallbackHandler {
+class RecordCallback : public ASIO::AudioCallbackHandler {
 
 private:
     std::ofstream recordingFile;
@@ -54,7 +54,7 @@ public:
 };
 
 // play recorded audio
-class PlaybackCallback : public AudioCallbackHandler {
+class PlaybackCallback : public ASIO::AudioCallbackHandler {
 
 private:
     const size_t amp = 30;
@@ -74,7 +74,7 @@ public:
 };
 
 // play predifined audio
-class PlayCallback : public AudioCallbackHandler {
+class PlayCallback : public ASIO::AudioCallbackHandler {
 
 private:
     const size_t amp = 1;
@@ -108,7 +108,7 @@ public:
 
 int main() {
 
-    ASIOAudioDevice asio;
+    ASIO::AudioDevice asio;
     asio.open(2, 2, 44100);
     auto recordCallback = std::make_shared<RecordCallback>();
     auto playbackCallback = std::make_shared<PlaybackCallback>();

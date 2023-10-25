@@ -1,34 +1,37 @@
 #pragma once
 
-#include "iohandler.hpp"
-
-
-class WASAPIIOHandler : public IOHandler<int> {
-public:
-    virtual void inputCallback(const int* const* inputData, int numInputChannels, int numSamples) noexcept {
-
-    }
-
-    virtual void outputCallback(int* const* outputData, int numOutputChannels, int numSamples) noexcept {
-
-    }
-
-    virtual void inputCallback(BYTE* pBuffer, std::size_t availableFrameCnt) noexcept = 0;
-    virtual void outputCallback(std::size_t availableFrameCnt, BYTE* pBuffer) noexcept = 0;
-    virtual ~WASAPIIOHandler() {}
-};
+#include "audioiohandler.hpp"
+#include <iostream>
 
 
 namespace WASAPI {
 
-    class CallbackHandler {
-
+    class DataView : public AudioDataView<short> {
+        short *data;
     public:
-        virtual void inputCallback(BYTE* pBuffer, std::size_t availableFrameCnt) noexcept = 0;
-        virtual void outputCallback(std::size_t availableFrameCnt, BYTE* pBuffer) noexcept = 0;
-        virtual ~CallbackHandler() {}
+        DataView(BYTE *pBuffer, size_t bufferSize) :
+            AudioDataView<short>(2, bufferSize),
+            data((short *)pBuffer) { }
+
+        FloatView<short> operator()(size_t i, size_t j) noexcept override {
+            return FloatView(data[i + j * getNumChannels()]);
+        }
+
+        float operator()(size_t i, size_t j) const noexcept override {
+            return FloatView(data[i + j * getNumChannels()]);
+        }
 
     };
 
+    struct IOHandler : AudioIOHandler<short> {
+        virtual void inputCallback(const AudioDataView<short> &inputData) noexcept {
+            inputCallback((const DataView &)inputData);
+        }
+        virtual void outputCallback(AudioDataView<short> &outputData) noexcept {
+            inputCallback((DataView &)outputData);
+        }
+        virtual void inputCallback(const DataView &) noexcept {}
+        virtual void outputCallback(DataView &) noexcept {}
+    };
 
 }

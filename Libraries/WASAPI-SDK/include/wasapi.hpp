@@ -276,7 +276,7 @@ namespace WASAPI {
 
     };
 
-    class Device : public Interface<IMMDevice> {
+    class MMDevice : public Interface<IMMDevice> {
     public:
         using Interface<IMMDevice>::Interface;
 
@@ -311,7 +311,7 @@ namespace WASAPI {
         auto operator[](UINT index) {
             IMMDevice *pDevice = nullptr;
             CATCH_ERROR(p->Item(index, &pDevice));
-            return Device(pDevice);
+            return MMDevice(pDevice);
         }
 
         auto size() {
@@ -331,11 +331,11 @@ namespace WASAPI {
         auto get_default_device(EDataFlow flow, ERole role = eConsole) {
             IMMDevice *pDevice = nullptr;
             CATCH_ERROR(p->GetDefaultAudioEndpoint(flow, role, &pDevice));
-            return Device(pDevice);
+            return MMDevice(pDevice);
         }
 
         /* IMMDeviceEnumerator::EnumAudioEndpoints */
-        auto get_device_collection(EDataFlow flow, Device::State dwStateMask = Device::State::all) {
+        auto get_device_collection(EDataFlow flow, MMDevice::State dwStateMask = MMDevice::State::all) {
             IMMDeviceCollection *pCollection = nullptr;
             CATCH_ERROR(p->EnumAudioEndpoints(flow, (DWORD)dwStateMask, &pCollection));
             return DeviceCollection(pCollection);
