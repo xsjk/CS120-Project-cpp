@@ -34,7 +34,7 @@ namespace WASAPI {
             *pWaveFormat = format;
             if (!pAudioClient.is_format_supported(shareMode, pWaveFormat))
                 throw std::runtime_error("Wave format not supported");
-            std::cout << pWaveFormat << std::endl;
+            // std::cout << pWaveFormat << std::endl;
         }
 
         void initialize() {
@@ -123,9 +123,14 @@ namespace WASAPI {
             });
 
         }
+        
+        ~Device() {
+            if (callbackHandler)
+                stop();
+        }
 
-        void start(std::shared_ptr<IOHandler> callback) {
-            callbackHandler = std::move(callback);
+        void start(const std::shared_ptr<IOHandler>& callback) {
+            callbackHandler = callback;
             recorder.pAudioClient.start();
             player.pAudioClient.start();
             trigger.start();

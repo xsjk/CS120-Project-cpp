@@ -160,9 +160,9 @@ namespace ASIO {
 
     void Device::audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData) {
         if (ioHandler != nullptr) {
-            auto inputData = DataView(inputChannelData, numInputChans, bufferSize);
+            auto inputData = DataView(inputChannelData, numInputChans, bufferSize, currentSampleRate);
             ioHandler->inputCallback(inputData);
-            auto outputData = DataView(outputChannelData, numOutputChans, bufferSize);
+            auto outputData = DataView(outputChannelData, numOutputChans, bufferSize, currentSampleRate);
             ioHandler->outputCallback(outputData);
         }
     }

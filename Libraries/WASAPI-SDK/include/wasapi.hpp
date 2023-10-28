@@ -223,8 +223,6 @@ namespace WASAPI {
                 realMinPeriod = 10000000. / waveFormat->nSamplesPerSec * i;
                 auto code = p->Initialize(AUDCLNT_SHAREMODE_EXCLUSIVE, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, realMinPeriod, realMinPeriod, waveFormat.get(), nullptr);
                 if (SUCCEEDED(code)) {
-                    std::cout << "Find a minimum device period in exclusive mode successfully!\n";
-                    std::cout << "which is " << realMinPeriod / 10000. << "ms\n";
                     break;
                 }
             }
@@ -373,24 +371,24 @@ namespace WASAPI {
 
     public:
     
-        void add(const WASAPI::Handle &handle, std::function<void()> callback) {
+        void add(const WASAPI::Handle &handle, auto callback) {
             if (!handle) throw std::runtime_error("invalid handle");
             if (triggers.size() == STATUS_ABANDONED_WAIT_0) 
                 throw std::runtime_error("number of callbacks exceeds");
             triggers.push_back(handle.get());
-            callbacks.push_back(std::move(callback));
+            callbacks.push_back(callback);
         }
 
         void start() {
             thread = std::jthread { [&]() {
                 while (true) {
-                    auto code = WaitForMultipleObjects(triggers.size(), triggers.data(), FALSE, INFINITE);
+                    auto code = WaitForMultipleObjects(triggers.size(), triggers.data(), FALSE, 1000);
                     switch (code) {
                     case WAIT_FAILED:
-                        std::cerr << "Wait Failed" << std::endl;
-                        break;
+                        std::cerr << "timeout" << std::endl;
+                        return;
                     default:
-                        callbacks.at(code - WAIT_OBJECT_0)();
+                        callbacks[code - WAIT_OBJECT_0]();
                         break;
                     }
                 }

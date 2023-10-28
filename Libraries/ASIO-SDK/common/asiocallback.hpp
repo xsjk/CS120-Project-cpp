@@ -2,6 +2,7 @@
 
 #include "audioiohandler.hpp"
 #include <iostream>
+#include <cstring>
 
 
 namespace ASIO {
@@ -9,8 +10,8 @@ namespace ASIO {
     class DataView : public AudioDataView<int> {
         int *const *data;
     public:
-        DataView(const int *const *channelData, int channels, int samples, double frequency) :
-            AudioDataView<int>(channels, samples, frequency),
+        DataView(const int *const *channelData, int channels, int samples, double sampleRate) :
+            AudioDataView<int>(channels, samples, sampleRate),
             data(const_cast<int* const*>(channelData)) { }
 
         FloatView<int> operator()(size_t i, size_t j) noexcept override {
@@ -19,6 +20,11 @@ namespace ASIO {
 
         float operator()(size_t i, size_t j) const noexcept override {
             return FloatView(data[i][j]);
+        }
+
+        void zero() noexcept override {
+            for (auto i = 0; i < getNumChannels(); i++)
+                std::memset(data[i], 0, getNumSamples() * sizeof(int));
         }
 
     };
