@@ -33,10 +33,6 @@ namespace ASIO {
         CATCH_ERROR(ASIOInit(&driverInfo));
     }
 
-    Device::~Device() {
-        instance = nullptr;
-    }
-
     AudioDevice::~AudioDevice() {
         auto oldCallbackHandler = callbackHandlers;
         for (auto &handler : oldCallbackHandler)

@@ -46,7 +46,6 @@ namespace ASIO {
 
     public:
         Device(std::string name = "ASIO4ALL v2");
-        ~Device();
         void open(int input_channels = 2, int output_channels = 2, double sample_rate = 44100);
         void start(std::shared_ptr<IOHandler>);
         void stop();
