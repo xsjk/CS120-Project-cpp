@@ -18,10 +18,10 @@
 #include <iterator>
 
 #include "signal.hpp"
-#include "wasapidevice.hpp"
-
-using namespace WASAPI;
-
+// #include "wasapidevice.hpp"
+// using namespace WASAPI;
+#include "asiodevice.h"
+using namespace ASIO;
 
 
 float mean(auto v) {
@@ -55,7 +55,6 @@ namespace Project1 {
         return count;
     }
 
-
     template<typename T>
     class Generator {
         std::function<T(float)> func;
@@ -70,10 +69,9 @@ namespace Project1 {
         const Generator& operator=(const Generator&) = delete;
 
         T next() { 
-            if (current_tick == 0) 
-                std::cout << "(Sender) " << name << " started" << std::endl;
-            current_tick++;
-            return func(current_tick / fs); 
+            // if (current_tick == 0) 
+            //     std::cout << "(Sender) " << name << " started " << std::endl;
+            return func(current_tick++ / fs); 
         }
         bool empty() { return current_tick >= ticks; }
         int size() { return ticks - current_tick; }
@@ -117,7 +115,6 @@ namespace Project1 {
             auto& gen = queue.front();
             if (gen.empty()) {
                 pop();
-                // std::cout << "(Sender) " << gen.name << "finished" << std::endl;
                 return next();
             }
             ticks -= 1;
@@ -128,7 +125,6 @@ namespace Project1 {
     };
 
 
-    class BitStreamDeviceIOHandler;
     class BitStreamDeviceIOHandler : public std::enable_shared_from_this<BitStreamDeviceIOHandler>, public IOHandler {
 
         struct BitStreamDeviceConfig {
@@ -186,7 +182,7 @@ namespace Project1 {
                     amplitude_threshold = std::max(amplitude_threshold, max_amplitude);
                     return false;
                 } else {
-                    amplitude_threshold *= 10;
+                    amplitude_threshold *= 30;
                     std::cout << "(Receiver) Preamble Amplitude threshold: " << amplitude_threshold << std::endl;
                     return true;
                 }
@@ -231,7 +227,10 @@ namespace Project1 {
                     // if (max_amplitude > amplitude_threshold)
                     //     std::cout << "max_amplitude " << max_amplitude << " > " << amplitude_threshold << std::endl;
                 }
-                return preamble_end_frame;
+                if (preamble_end_frame)
+                    return preamble_end_frame;
+                else
+                    return -1;
             } 
 
         } preamble;
@@ -254,7 +253,7 @@ namespace Project1 {
                 : symbol_duration(symbol_duration), symbol_count(symbol_count), fs(fs) { }
 
             virtual std::function<float(float)> encode(Symbol symbol) = 0;
-            virtual Symbol decode(const std::vector<float> &y) = 0;
+            virtual Symbol decode(std::span<float>) = 0;
 
             Generator<float> create(Symbol symbol) {
                 return {encode(symbol), fs, symbol_duration, "Symbol " + std::to_string(symbol)};
@@ -264,7 +263,7 @@ namespace Project1 {
             virtual std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) = 0;
 
             virtual Generator<float> create_calibrate() {
-                return {[](float t) { return 0; }, fs, symbol_duration, "Modem Calibrate"};
+                return {[](float t) { return 0; }, fs, 0, "Modem Calibrate"};
             }
 
             Symbol data_end_symbol() {
@@ -378,9 +377,9 @@ namespace Project1 {
             }
 
 
-            Symbol decode(const std::vector<float> &y) {
+            Symbol decode(std::span<float> y) {
                 auto n = y.size();
-                std::vector<float> y_ = y;
+                auto y_ = std::vector<float>(y.begin(), y.end());
                 Signals::fft<float>(y_);
 
                 for (auto i : y_)
@@ -390,15 +389,15 @@ namespace Project1 {
                 std::vector<float> amp(freqs.size());
                 /// iterate over freqs and get amplitude
                 Symbol s = 0;
-                // std::cout << "(Receiver) Amplitudes: ";
+                std::cout << "(Receiver) Amplitudes: ";
                 for (int i = 0; i < freqs.size(); i++) {
                     auto freq = freqs[i];
                     int k = std::round(freq * n / fs);
                     amp[i] = std::abs(y_[k]);
                     s |= (amp[i] > 0.05 * symbol_duration) << i;
-                    // std::cout << std::round(amp[i]) << ' ';
+                    std::cout << std::round(amp[i]) << ' ';
                 }
-                // std::cout << '\n';
+                std::cout << '\n';
                 return s;
             }
 
@@ -487,7 +486,7 @@ namespace Project1 {
                 config.fs
                 } { }
 
-            std::function<float(float)> encode(Symbol symbol) {
+            std::function<float(float)> encode(Symbol symbol) override {
                 if (symbol > symbol_count)
                     throw std::runtime_error("Error: symbol out of range");
 
@@ -508,7 +507,7 @@ namespace Project1 {
             }
 
 
-            Symbol decode(const std::vector<float> &y) {
+            Symbol decode(std::span<float> y) override {
                 auto n = y.size();
 
                 // auto hamming = Signals::Hamming(n);
@@ -539,7 +538,6 @@ namespace Project1 {
             
         };
 
-
         struct QAMModem : Modem {
 
             float freq;
@@ -566,10 +564,10 @@ namespace Project1 {
                     for (int i = 0; i < order; i++)
                         for (int j = 0; j < order; j++) {
                             phase[i * order + j] = std::complex<float> (
-                                (2. * i / (order - 1) - 1.),
-                                (2. * j / (order - 1) - 1.)
+                                (2. * i / (order - 1) - 1),
+                                (2. * j / (order - 1) - 1)
                             ) / std::sqrt(2.f);
-                            std::cout << "(" << phase[i * order + j].real() << ", " << phase[i * order + j].imag() << ") ";
+                            // std::cout << "(" << phase[i * order + j].real() << ", " << phase[i * order + j].imag() << ") ";
                         }
                     return phase;
                 }(order)), butter(butter) { }
@@ -585,87 +583,82 @@ namespace Project1 {
                 };
             }
 
-            float standard_amplitude = 1;
-            void calibrate(const std::vector<float>& y) {
-                float a = 0;
-                for (auto i = 0; i < y.size(); i++)
-                    a += y[i] * std::sin(2 * std::numbers::pi * freq * i / fs);
-                a /= y.size();
-
-                float b = 0;
-                for (auto i = 0; i < y.size(); i++)
-                    b += y[i] * std::sin(2 * std::numbers::pi * freq * i / fs);
-                b /= y.size();
-                
-                std::cout << "(Receiver) Calibrating: (" << a << ", " << b << ")" << std::endl;
-                standard_amplitude = (a + b) / 2;
-                std::cout << "Standard amplitude: " << standard_amplitude << std::endl;
-            }
-
-            Generator<float> create_calibrate() override {
-                return Generator<float>([freq=this->freq](float t) { return std::sin(2 * std::numbers::pi * freq * t); }, fs, symbol_duration, "Modem Calibrate");
-            }
-
             std::optional<int> phase_offset;
 
 
-            Symbol decode(const std::vector<float> &y) override {
+            float standard_amplitude = 1;
+            Symbol decode(std::span<float> y) override {
                 
-                // auto filtered = butter.filter(y);
-                auto &filtered = y;
-                // if (!phase_offset)
+                auto filtered = butter.filter(y);
+
                 for (auto i = 0; i < y.size(); i++)
                     ofile << filtered[i] << std::endl;
 
-                auto i_start = y.size() / 4;
+                auto i_begin = y.size() / 4;
                 auto i_end = y.size() * 3 / 4;
-                // auto i_start = 0;
+                // auto i_begin = 0;
                 // auto i_end = y.size();
+                i_end = std::min(i_end, filtered.size());
 
                 int offset = 0;
                 if (phase_offset)
                     offset = *phase_offset;
     
                 float a = 0, b = 0;
-                for (auto i = i_start; i < i_end; i++) {
+                for (auto i = i_begin; i < i_end; i++) {
                     a += filtered[i+offset] * std::sin(2 * std::numbers::pi * freq * i / fs);
                     b += filtered[i+offset] * std::cos(2 * std::numbers::pi * freq * i / fs);
                 }
-                // while (filtered[offset] > 0)
-                //     offset++;
-                // while (filtered[offset] < 0)
-                //     offset++;
 
+                a /= i_end - i_begin;
+                b /= i_end - i_begin;
+
+                a /= standard_amplitude;
+                b /= standard_amplitude;
+
+                // if (phase_offset.has_value()) 
+                //     std::cout << "(Receiver) Decoding: (" << a << ", " << b << ")" << std::endl;
+
+                
                 if (!phase_offset.has_value()) {
+                    standard_amplitude = std::sqrt(a * a + b * b);
+                    std::cout << "(Receiver) Standard amplitude: " << standard_amplitude << std::endl;
                     float phase = - std::atan2(b, a);
                     if (phase < 0)
                         phase += 2 * std::numbers::pi;
-                    phase_offset = fs / (2 * std::numbers::pi * freq) * phase;
-                    std::cout << "Set offset: " << *phase_offset << std::endl;
+                    phase_offset = std::round(fs / (2 * std::numbers::pi * freq) * phase);
+                    std::cout << "(Receiver) Set offset: " << *phase_offset << std::endl;
                     return -1;
                 }
+
 
                 int i, j;
 
                 if (a < 0 && b < 0)
                     i = 0, j = 0;
                 else if (a < 0 && b > 0)
-                    i = 1, j = 0;
-                else if (a > 0 && b < 0)
                     i = 0, j = 1;
+                else if (a > 0 && b < 0)
+                    i = 1, j = 0;
                 else if (a > 0 && b > 0)
                     i = 1, j = 1;
-                
-                // std::cerr << "a = " << a << ", b = " << b << std::endl;
 
+                // // std::cerr << "a = " << a << ", b = " << b << std::endl;
                 
-                // a /= standard_amplitude;
-                // b /= standard_amplitude;
-                // i = std::round((a + 1) * (symbols.size() - 1) / 2);
-                // j = std::round((b + 1) * (symbols.size() - 1) / 2);
+                // a *= std::sqrt(2);
+                // b *= std::sqrt(2);
+                // i = std::round((a + 1) * (order - 1) / 2);
+                // j = std::round((b + 1) * (order - 1) / 2);
                 
+                // // if (phase_offset.has_value())
+                // //     std::cout << "(Receiver) Decoding: (i=" << i << ", j=" << j << ")" << std::endl;
 
-                return i * order + j;
+                return i + j * order;
+            }
+
+            
+            virtual Generator<float> create_calibrate() override {
+                return {[freq=this->freq](float t) { return std::sin(2 * std::numbers::pi * freq * t); }, fs, symbol_duration, "Modem Calibrate"};
             }
 
             Symbol data_end_symbol() {
@@ -723,10 +716,10 @@ namespace Project1 {
             } state = State::Idle;
 
             GeneratorQueue<float> outputGenerator;
+            std::mutex generator_mutex;
             Modem& modem;
             Preamble& preamble;
             std::ofstream ofile;
-            std::mutex mutex;
 
         public:
 
@@ -735,7 +728,7 @@ namespace Project1 {
             }
 
             void send(const std::vector<bool> &data) {
-                std::lock_guard<std::mutex> lock(mutex);
+                std::lock_guard<std::mutex> lock(generator_mutex);
                 if (state == State::Idle) {
                     outputGenerator.push(preamble.create());
                     outputGenerator.push(modem.create_calibrate());
@@ -746,12 +739,12 @@ namespace Project1 {
                 outputGenerator.push(modem.create_data_end());
                 if (state == State::Idle) {
                     state = State::Sending;
-                    std::cout << "(Sender) Started" << std::endl;
+                    // std::cout << "(Sender) Started" << std::endl;
                 }
             }
 
             void handleCallback(DataView &p) noexcept {
-                std::lock_guard<std::mutex> lock(mutex);
+                std::lock_guard<std::mutex> lock(generator_mutex);
                 switch (state) {
                     case State::Idle:
                         p.zero();
@@ -762,19 +755,21 @@ namespace Project1 {
                                 state = State::Stopping;
                             }
                             float y = outputGenerator();
-                            p(0, i) = p(1, i) = y;
+                            p(0, i) = y;
+                            p(1, i) = 0;
                             ofile << y << std::endl;
                         }
                         break;
                     case State::Stopping:
                         for (auto i = 0; i < p.getNumSamples(); i++) {
                             if (outputGenerator.empty()) {
-                                if (state == State::Stopping)
-                                    std::cout << "(Sender) Stopped" << std::endl;
+                                // if (state == State::Stopping)
+                                //     std::cout << "(Sender) Stopped" << std::endl;
                                 state = State::Idle;
                             }
                             float y = outputGenerator();
-                            p(0, i) = p(1, i) = y;
+                            p(0, i) = y;
+                            p(1, i) = 0;
                             ofile << y << std::endl;
                         }
                         break;
@@ -842,77 +837,87 @@ namespace Project1 {
                     ofile << p(0, i) << std::endl;
 
                 
-                int i_start = 0;
                 switch (state) {
                     case State::Calibrating:
                         if (preamble.calibrate(p)) {
                             state = State::Idle;
-                            std::cout << "(Receiver) Calibration finished" << std::endl;
+                            // std::cout << "(Receiver) Calibration finished" << std::endl;
                         }
                         break;
 
                     case State::Idle:
                         if (auto start = preamble.search_preamble(p)) {
                             state = State::PreambleStarted;
-                            std::cout << "(Receiver) Preamble started at " << *start << std::endl;
+                            // std::cout << "(Receiver) Preamble started at " << *start << std::endl;
                         }
                         break;
                     
                     case State::PreambleStarted:
                         if (auto stop = preamble.preamble_stop(p)) {
-                            std::cout << "(Receiver) Preamble stopped at " << *stop << std::endl;
-                            state = State::FetchingData;
-                            inputBuffer.clear();
-                            for (int i = *stop; i < std::min(
-                                modem.symbol_duration - 
-                                int(inputBuffer.size()),
-                                int(p.getNumSamples())
-                            ); i++) {
-                                inputBuffer.push_back(p(0, i));
+                            if (*stop == -1) {
+                                // std::cout << "(Receiver) Preamble stopped at " << *stop << std::endl;
+                                state = State::Idle;
+                            } else {
+                                // std::cout << "(Receiver) Preamble stopped at " << *stop << std::endl;
+                                state = State::FetchingData;
+                                inputBuffer.clear();
+                                for (int i = *stop; i < std::min(
+                                    modem.symbol_duration - 
+                                    int(inputBuffer.size()),
+                                    int(p.getNumSamples())
+                                ); i++) {
+                                    inputBuffer.push_back(p(0, i));
+                                }
                             }
                         }
                         break;
                     case State::FetchingData:
                         {
-                            auto i = i_start;
-                            auto i_max = std::min(
-                                modem.symbol_duration - 
-                                int(inputBuffer.size()),
-                                int(p.getNumSamples())
-                            );
-                            for (; i < i_max; i++)
-                                inputBuffer.push_back(p(0, i));
+                            int i_start = 0;
 
-                            if (inputBuffer.size() > modem.symbol_duration) {
-                                std::cerr << "(Receiver) Error: inputBuffer overflow" << std::endl;
-                                exit(-1);
-                            }
+                            while (true) {
 
-                            if (inputBuffer.size() == modem.symbol_duration) {
-                                Modem::Symbol symbol = modem.decode(inputBuffer);
-                                // handle symbol 
-                                switch (modem.symbol_type(symbol)) {
-                                    case Modem::SymbolType::Data:
-                                        std::cout << "(Receiver) Data symbol: " << (int)symbol << std::endl;
-                                        inputQueue.push(symbol);
-                                        break;
-                                    case Modem::SymbolType::Stop:
-                                        std::cout << "(Receiver) Stop symbol " << (int)symbol << std::endl;
-                                        state = State::Stop;
-                                        break;
-                                    case Modem::SymbolType::Error:
-                                        std::cerr << "(Receiver) Error symbol: " << (int)symbol << std::endl;
-                                        break;
-                                    case Modem::SymbolType::Pass:
-                                        std::cout << "(Receiver) Pass symbol" << std::endl;
-                                        break;
-                                }
-
-                                inputBuffer.clear();
-                                for (; i < p.getNumSamples(); i++)
+                                int i_max = std::min(
+                                    modem.symbol_duration - inputBuffer.size() + i_start,
+                                    p.getNumSamples()
+                                );
+                                
+                                for (int i = i_start; i < i_max; i++)
                                     inputBuffer.push_back(p(0, i));
+
+                                if (inputBuffer.size() > modem.symbol_duration) {
+                                    // std::cerr << "(Receiver) Error: inputBuffer overflow" << std::endl;
+                                    exit(-1);
+                                } else if (inputBuffer.size() == modem.symbol_duration) {
+                                    Modem::Symbol symbol = modem.decode(inputBuffer);
+                                    // handle symbol 
+                                    switch (modem.symbol_type(symbol)) {
+                                        case Modem::SymbolType::Data:
+                                            std::cout << "(Receiver) Data symbol: " << (int)symbol << std::endl;
+                                            inputQueue.push(symbol);
+                                            break;
+                                        case Modem::SymbolType::Stop:
+                                            // std::cout << "(Receiver) Stop symbol " << (int)symbol << std::endl;
+                                            state = State::Stop;
+                                            break;
+                                        case Modem::SymbolType::Error:
+                                            // std::cerr << "(Receiver) Error symbol: " << (int)symbol << std::endl;
+                                            break;
+                                        case Modem::SymbolType::Pass:
+                                            std::cout << "(Receiver) Pass symbol" << std::endl;
+                                            break;
+                                    }
+
+                                    inputBuffer.clear();
+
+                                    i_start = i_max;
+                                    
+                                } else {
+                                    break;
+                                    
+                                }
+                                
                             }
-                            i_start = 0;
                         }
                         break;
                     case State::Stop:
@@ -949,23 +954,23 @@ namespace Project1 {
             //      48000,
             // },
             modem { {
-                .freq = 3600,
-                .duration = 800,
+                .freq = 2400,
+                .duration = 1000,
                 .fs = c.fs,
-                .butter = Signals::Butter<float>(
-                    {  0.00391613,  0.        , -0.00783225,  0.        ,  0.00391613},
-                    { 1.        , -3.31127199,  4.56184947, -3.01793703,  0.83100559}
-                ),
+                .butter = {
+                    { 0.00016822370859146914, 0.0, -0.0003364474171829383, 0.0, 0.00016822370859146914},
+                    { 1.0, -3.76934096654668, 5.515261708905102, -3.7001989105751507, 0.9636529842237052}
+                },
                 .order = 2,
             } },
             preamble { {
-                .freq = 12000,
-                .duration = 800,
+                .freq = 8000,
+                .duration = 1000,
                 .fs = c.fs,
-                .butter = Signals::Butter<float>(
-                    {0.0009, 0, -0.0019, 0, 0.0009},
-                    {1.0000, -0.0000, 1.9112, 0, 0.9150}
-                )
+                .butter = {
+                    {0.00016822,  0.        , -0.00033645,  0.        ,  0.00016822},
+                    {1.        , -1.98165982,  2.94480658, -1.94530969,  0.96365298}
+                }
             } },
             sender { modem, preamble },
             receiver { modem, preamble } 
@@ -985,17 +990,16 @@ namespace Project1 {
     struct BitStreamDevice {
 
         std::shared_ptr<BitStreamDeviceIOHandler> io;
-        Device device;
+        std::shared_ptr<Device> device;
 
         BitStreamDevice() {
-            io = std::make_shared<BitStreamDeviceIOHandler>();
-            device.open();
-            device.start(io);
+            device = std::make_shared<Device>();
+            device->open();
+            device->start(io = std::make_shared<BitStreamDeviceIOHandler>());
         }
 
         ~BitStreamDevice() {
-            device.stop();
-            std::cout << "Exit" << std::endl;
+            device->stop();
         }
 
         void send(const auto& data) { io->send(data); }
@@ -1028,36 +1032,41 @@ int main() {
 
     std::cout << "Start Transmit" << std::endl;
 
-                                        //3       6      3      4
-    Project1::sout << std::vector<bool> {
-        1,0, 1,1, 1,0, 1,1,
-        0,1, 0,0, 0,1, 0,0,
-        0,1, 0,1, 1,1, 0,1,
-        1,1, 1,1, 1,1, 1,1, 
-    };
+    // //3       6      3      4
+    // Project1::sout << std::vector<bool> {
+    //     0,0, 1,0, 0,1, 1,1, 
+    //     0,0, 1,0, 0,1, 1,1, 
+    //     0,0, 1,0, 0,1, 1,1, 
+    //     0,0, 1,0, 0,1, 1,1, 
+    //     0,0, 1,0, 0,1, 1,1, 
+    //     // 0,1, 0,0,
+    //     // 1,1, 0,0, 0,0, 0,1,
+    //     // 0,0, 1,1
+    // };
+    // std::this_thread::sleep_for(std::chrono::seconds(1));
 
     std::vector<bool> input, output;
-    // auto& ofile = std::cout;
     std::ifstream ifile { "INPUT.txt" };
     std::ofstream ofile { "OUTPUT.txt" };
 
     bool bit;
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 10000; i++) {
         ifile >> bit;
         input.push_back(bit);
     }
 
     Project1::sout << input;
     
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    // std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::this_thread::sleep_for(std::chrono::seconds(15));
 
     Project1::sin >> output;
+    for (auto bit : output)
+        ofile << bit << std::endl;
 
-    for (int i = 0; i < 20; i++) {
-        ofile << output[i] << std::endl;
-    }
+    // for (int i = 0; i < 10000; i++) {
+    //     ofile << output[i] << std::endl;
+    // }
+
     return 0;
 
 }

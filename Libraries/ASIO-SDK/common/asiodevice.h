@@ -40,6 +40,7 @@ namespace ASIO {
 
     protected:
         std::mutex callbackLock;
+        std::mutex ioHandlerLock;
         long numInputChans = 0, numOutputChans = 0;
         long bufferSize = 0;
         double currentSampleRate = 0;
@@ -51,8 +52,10 @@ namespace ASIO {
         void stop();
         void close();
         virtual void restart();
+
     protected:
         virtual void audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData);
+    
     private:
         void callback(long index);
 

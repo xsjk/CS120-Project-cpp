@@ -14,6 +14,11 @@ namespace WASAPI {
             AudioDataView<short>(2, bufferSize, sampleRate),
             data((short *)pBuffer) { }
 
+        DataView(const DataView&) = delete;
+        DataView(DataView&&) = delete;
+        DataView& operator=(const DataView&) = delete;
+        DataView& operator=(DataView&&) = delete;
+
         FloatView<short> operator()(size_t i, size_t j) noexcept override {
             return FloatView(data[i + j * getNumChannels()]);
         }
