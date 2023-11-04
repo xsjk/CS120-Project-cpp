@@ -57,11 +57,12 @@ public:
     ChirpWave() : file("test.txt") {}
     
     void outputCallback(DataView &p) noexcept override {
+        std::cout << "t = " << t << std::endl;
         for (auto i = 0; i < p.getNumSamples(); i++, t += 1 / p.getSampleRate()) {
             p[0][i] = std::sin(2 * std::numbers::pi * 440 * t) / 4;
-            p[1][i] = 0;
+            // p[1][i] = 0;
             if (t > t2 && t < t2 + duration) {
-                p[0][i] = p[0][i] + chirp(t - t2) / 2;
+                p[0][i] += chirp(t - t2) / 2;
             } 
         }
     }
@@ -110,10 +111,10 @@ public:
 
 int main() {
     auto p = std::make_shared<ChirpWave>();
-    Device device;
-    device.open();
-    device.start(p);
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    auto device = std::make_shared<Device>();
+    device->open();
+    device->start(p);
+    std::this_thread::sleep_for(std::chrono::seconds(5));
     return 0;
 
 }

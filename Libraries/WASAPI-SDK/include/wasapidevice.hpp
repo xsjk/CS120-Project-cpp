@@ -3,6 +3,7 @@
 #include "wasapi.hpp"
 #include "wasapicallback.hpp"
 
+#include <cassert>
 
 namespace WASAPI {
 
@@ -54,9 +55,10 @@ namespace WASAPI {
 
 
 
-    class Device {
+    class Device : public std::enable_shared_from_this<Device> {
     private:
         std::shared_ptr<WASAPI::IOHandler> callbackHandler;
+        std::mutex mutex;
 
         template <class C>
         struct Process : public ClientHandler {
@@ -93,6 +95,13 @@ namespace WASAPI {
             recorder { captureMode }, player { renderMode } { }
 
         void open(WORD input_channels = 2, WORD output_channels = 2, DWORD sampleRate = 48000) {
+            std::shared_ptr<Device> self;
+            try {
+                self = shared_from_this();
+            } catch (const std::bad_weak_ptr&) {
+                std::cerr << "You must create Device with std::make_shared<Device>(...)" << std::endl;
+            }
+
             recorder.set_wave_format(input_channels, sampleRate, 16);
             player.set_wave_format(output_channels, sampleRate, 16);
             recorder.initialize();
@@ -102,8 +111,14 @@ namespace WASAPI {
             std::cout << "Player buffer size: " << playerBufferSize << std::endl;
             std::cout << "Recorder buffer size: " << recorderBufferSize << std::endl;
 
-            trigger.add(recorder.eventHandle, [&] {
-                auto [pData, numFrames, flags] = recorder.client.get_buffer();
+            trigger.add(recorder.eventHandle, [
+                self=self, 
+                sampleRate=sampleRate
+            ] {
+                std::lock_guard<std::mutex> lock(self->mutex);
+                if (self->callbackHandler == nullptr) return;
+                auto [pData, numFrames, flags] = self->recorder.client.get_buffer();
+                if (pData == nullptr) return;
                 if (flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY)
                     std::cerr << "AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY" << std::endl;
                 if (flags & AUDCLNT_BUFFERFLAGS_SILENT)
@@ -111,25 +126,33 @@ namespace WASAPI {
                 if (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR)
                     std::cerr << "AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR" << std::endl;
                 auto view = DataView(pData, numFrames, sampleRate);
-                callbackHandler->inputCallback(view);
-                recorder.client.release_buffer(numFrames);
+                self->callbackHandler->inputCallback(view);
+                self->recorder.client.release_buffer(numFrames);
+                
             });
 
-            trigger.add(player.eventHandle, [&] {
-                auto pData = player.client.get_buffer(playerBufferSize);
-                auto view = DataView(pData, playerBufferSize, sampleRate);
-                callbackHandler->outputCallback(view);
-                player.client.release_buffer(playerBufferSize);
+            trigger.add(player.eventHandle, [
+                self=self, 
+                bufferSize=playerBufferSize, 
+                sampleRate=sampleRate
+            ] {
+                std::lock_guard<std::mutex> lock(self->mutex);
+                if (self->callbackHandler == nullptr) return;
+                auto pData = self->player.client.get_buffer(bufferSize);
+                auto view = DataView(pData, bufferSize, sampleRate);
+                self->callbackHandler->outputCallback(view);
+                self->player.client.release_buffer(bufferSize);
             });
+
 
         }
         
         ~Device() {
-            if (callbackHandler)
-                stop();
+            stop();
         }
 
         void start(const std::shared_ptr<IOHandler>& callback) {
+            std::lock_guard<std::mutex> lock(mutex);
             callbackHandler = callback;
             recorder.pAudioClient.start();
             player.pAudioClient.start();
@@ -137,6 +160,8 @@ namespace WASAPI {
         }
 
         void stop() {
+            std::lock_guard<std::mutex> lock(mutex);
+            if (!callbackHandler) return;
             trigger.stop();
             recorder.pAudioClient.stop();
             player.pAudioClient.stop();

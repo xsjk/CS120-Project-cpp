@@ -79,10 +79,12 @@ namespace ASIO {
 
 
     void Device::start(std::shared_ptr<IOHandler> handler) {
+        std::lock_guard<std::mutex> lock(ioHandlerLock);
         ioHandler = std::move(handler);
     }
 
     void Device::stop() {
+        std::lock_guard<std::mutex> lock(ioHandlerLock);
         ioHandler = nullptr;
     }
 
@@ -155,12 +157,12 @@ namespace ASIO {
     }
 
     void Device::audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData) {
-        if (ioHandler != nullptr) {
-            auto inputData = DataView(inputChannelData, numInputChans, bufferSize, currentSampleRate);
-            ioHandler->inputCallback(inputData);
-            auto outputData = DataView(outputChannelData, numOutputChans, bufferSize, currentSampleRate);
-            ioHandler->outputCallback(outputData);
-        }
+        std::lock_guard<std::mutex> lock(ioHandlerLock);
+        if (ioHandler == nullptr) return;
+        auto inputData = DataView(inputChannelData, numInputChans, bufferSize, currentSampleRate);
+        ioHandler->inputCallback(inputData);
+        auto outputData = DataView(outputChannelData, numOutputChans, bufferSize, currentSampleRate);
+        ioHandler->outputCallback(outputData);
     }
 
     void AudioDevice::audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData) {
