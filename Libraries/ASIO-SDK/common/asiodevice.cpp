@@ -126,8 +126,8 @@ namespace ASIO {
     }
 
     void Device::close() {
-        CATCH_ERROR(ASIOStop());
         CATCH_ERROR(ASIODisposeBuffers());
+        CATCH_ERROR(ASIOStop());
     }
 
     void Device::restart() {}
@@ -158,7 +158,11 @@ namespace ASIO {
 
     void Device::audioDeviceIOCallback(const int *const *inputChannelData, int *const *outputChannelData) {
         std::lock_guard<std::mutex> lock(ioHandlerLock);
-        if (ioHandler == nullptr) return;
+        if (ioHandler == nullptr) {
+            for (int i = 0; i < numOutputChans; i++) 
+                std::memset(outputChannelData[i], 0, bufferSize * sizeof(int));
+            return;
+        }
         auto inputData = DataView(inputChannelData, numInputChans, bufferSize, currentSampleRate);
         ioHandler->inputCallback(inputData);
         auto outputData = DataView(outputChannelData, numOutputChans, bufferSize, currentSampleRate);

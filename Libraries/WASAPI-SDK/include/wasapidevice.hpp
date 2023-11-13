@@ -148,7 +148,7 @@ namespace WASAPI {
         }
         
         ~Device() {
-            stop();
+            close();
         }
 
         void start(const std::shared_ptr<IOHandler>& callback) {
@@ -166,6 +166,10 @@ namespace WASAPI {
             recorder.pAudioClient.stop();
             player.pAudioClient.stop();
             callbackHandler = nullptr;
+        }
+
+        void close() {
+            stop();
         }
 
     };

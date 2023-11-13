@@ -388,7 +388,8 @@ namespace WASAPI {
                         std::cerr << "timeout" << std::endl;
                         return;
                     default:
-                        callbacks[code - WAIT_OBJECT_0]();
+                        if (code - WAIT_OBJECT_0 < triggers.size())
+                            callbacks[code - WAIT_OBJECT_0]();
                         break;
                     }
                 }
