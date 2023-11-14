@@ -17,11 +17,11 @@
 
 using namespace WASAPI;
 
-class SineWave : public IOHandler {
+class SineWave : public IOHandler<float> {
     float phase = 0;
 public:
 
-    void outputCallback(DataView &p) noexcept override {
+    void outputCallback(DataView<float> &p) noexcept override {
         for (auto i = 0; i < p.getNumSamples(); i++)
             p[0][i] = p[1][i] = std::sin(phase += 2 * std::numbers::pi * 440 / 48000);
     }
@@ -29,7 +29,7 @@ public:
 };
 
 
-class ChirpWave : public IOHandler {
+class ChirpWave : public IOHandler<float> {
 
     struct Chirp {
         float freq_start;
@@ -56,7 +56,7 @@ class ChirpWave : public IOHandler {
 public:
     ChirpWave() : file("test.txt") {}
     
-    void outputCallback(DataView &p) noexcept override {
+    void outputCallback(DataView<float> &p) noexcept override {
         std::cout << "t = " << t << std::endl;
         for (auto i = 0; i < p.getNumSamples(); i++, t += 1 / p.getSampleRate()) {
             p[0][i] = std::sin(2 * std::numbers::pi * 440 * t) / 4;
@@ -67,7 +67,7 @@ public:
         }
     }
 
-    void inputCallback(const DataView &inputData) noexcept override {
+    void inputCallback(const DataView<float> &inputData) noexcept override {
         auto availableFrameCnt = inputData.getNumSamples();
         for (auto i = 0; i < availableFrameCnt; i++) {
             file << inputData[0][i] << std::endl;
@@ -77,7 +77,7 @@ public:
 
 };  
 
-class Recorder : public IOHandler {
+class Recorder : public IOHandler<float> {
     std::ofstream file;
     std::queue<float> data;
 
@@ -87,7 +87,7 @@ public:
         file.open("test.txt");
     }
 
-    void inputCallback(const DataView &inputData) noexcept override {
+    void inputCallback(const DataView<float> &inputData) noexcept override {
         for (auto i = 0; i < inputData.getNumSamples(); i++) {
             float v = inputData[0][i];
             file << v << std::endl;
@@ -95,7 +95,7 @@ public:
         }
     }
 
-    void outputCallback(DataView &outputData) noexcept override {
+    void outputCallback(DataView<float> &outputData) noexcept override {
         for (auto i = 0; i < outputData.getNumSamples(); i++) {
             if (data.empty()) {
                 std::cout << "No more data to play" << std::endl;

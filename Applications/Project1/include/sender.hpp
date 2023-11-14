@@ -46,7 +46,7 @@ public:
 
     }
 
-    void handleCallback(DataView &p) noexcept {
+    void handleCallback(DataView<float> &p) noexcept {
         
         std::lock_guard<std::mutex> lock(generator_mutex);
         for (auto i = 0; i < p.getNumSamples(); i++) {

@@ -15,8 +15,8 @@ namespace Physical {
 
 struct Preamble {
     virtual Generator<float> create() noexcept = 0;
-    virtual bool calibrate(const DataView& p) noexcept { return true; };
-    virtual std::optional<int> wait(const DataView& p) noexcept = 0;
+    virtual bool calibrate(const DataView<float> &p) noexcept { return true; };
+    virtual std::optional<int> wait(const DataView<float> &p) noexcept = 0;
 };
 
 struct SinePreamble : Preamble {
@@ -47,7 +47,7 @@ struct SinePreamble : Preamble {
     // continuous 5 chunks of data with same amplitude
     float amplitude_threshold = 0;
     float calibrate_counter = 0;
-    bool calibrate(const DataView& p) noexcept override {
+    bool calibrate(const DataView<float> &p) noexcept override {
         if (calibrate_counter++ < 100) {
             auto filtered = butter.filter(p[0]);
             float max_amplitude = 0;
@@ -66,7 +66,7 @@ struct SinePreamble : Preamble {
 
 
     std::optional<int> preamble_end_frame;
-    std::optional<int> wait(const DataView& p) noexcept override {
+    std::optional<int> wait(const DataView<float> &p) noexcept override {
         auto filtered = butter.filter(p[0]);
         if (!preamble_end_frame)
             for (auto i = 0; i < filtered.size(); i++) {
@@ -115,7 +115,7 @@ struct StaticPreamble : Preamble {
     // continuous 5 chunks of data with same amplitude
     float amplitude_threshold = 0;
     float calibrate_counter = 0;
-    bool calibrate(const DataView& p) noexcept override {
+    bool calibrate(const DataView<float> &p) noexcept override {
         if (calibrate_counter++ < 100) {
             for (auto i = 0; i < p.size(); i++) {
                 buffer.emplace_back(p(0, i));
@@ -138,7 +138,7 @@ struct StaticPreamble : Preamble {
 
 
     int lastBigSumI = 0;
-    std::optional<int> wait(const DataView& p) noexcept override {
+    std::optional<int> wait(const DataView<float> &p) noexcept override {
         
         for (auto i = 0; i < p.size(); i++) {
             buffer.emplace_back(p(0, i));

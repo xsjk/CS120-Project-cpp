@@ -40,7 +40,7 @@ namespace Physical {
     };
 
     template<typename PreambleType, typename ModemType>
-    class BitStreamDeviceIOHandler : public std::enable_shared_from_this<BitStreamDeviceIOHandler<PreambleType, ModemType>>, public IOHandler {
+    class BitStreamDeviceIOHandler : public std::enable_shared_from_this<BitStreamDeviceIOHandler<PreambleType, ModemType>>, public IOHandler<float> {
 
         BitStreamDeviceConfig<PreambleType, ModemType> config;
         Sender sender { config.modem, config.preamble, config.package_size};
@@ -50,8 +50,8 @@ namespace Physical {
 
     public:
         constexpr BitStreamDeviceIOHandler(BitStreamDeviceConfig<PreambleType, ModemType>&& c) : config(std::move(c)) {}
-        void inputCallback(const DataView &p) noexcept override { receiver.handleCallback(p); }
-        void outputCallback(DataView &p) noexcept override { sender.handleCallback(p); }
+        void inputCallback(const DataView<float> &p) noexcept override { receiver.handleCallback(p); }
+        void outputCallback(DataView<float> &p) noexcept override { sender.handleCallback(p); }
         void send(const auto& data) { sender.send(data); }
         bool available() { return receiver.available(); }
         auto read() { return receiver.read(); }

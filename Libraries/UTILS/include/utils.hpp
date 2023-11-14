@@ -1,13 +1,11 @@
 #pragma once
 
 
-template<int start, int end, typename F>
-inline void static_for(F&& f)
-{
-    if constexpr (start < end)
-    {
+template<int start, int end>
+inline void static_for(auto&& f) {
+    if constexpr (start < end) {
         f(std::integral_constant<int, start>{});
-        static_for<start + 1, end>(std::forward<F>(f));
+        static_for<start + 1, end>(std::forward<decltype(f)>(f));
     }
 }
 

@@ -57,7 +57,7 @@ namespace WASAPI {
 
     class Device : public std::enable_shared_from_this<Device> {
     private:
-        std::shared_ptr<WASAPI::IOHandler> callbackHandler;
+        std::shared_ptr<WASAPI::IOHandler<float>> callbackHandler;
         std::mutex mutex;
 
         template <class C>
@@ -125,7 +125,7 @@ namespace WASAPI {
                     std::cerr << "AUDCLNT_BUFFERFLAGS_SILENT" << std::endl;
                 if (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR)
                     std::cerr << "AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR" << std::endl;
-                auto view = DataView(pData, numFrames, sampleRate);
+                auto view = DataView<float>(pData, numFrames, sampleRate);
                 self->callbackHandler->inputCallback(view);
                 self->recorder.client.release_buffer(numFrames);
                 
@@ -139,7 +139,7 @@ namespace WASAPI {
                 std::lock_guard<std::mutex> lock(self->mutex);
                 if (self->callbackHandler == nullptr) return;
                 auto pData = self->player.client.get_buffer(bufferSize);
-                auto view = DataView(pData, bufferSize, sampleRate);
+                auto view = DataView<float>(pData, bufferSize, sampleRate);
                 self->callbackHandler->outputCallback(view);
                 self->player.client.release_buffer(bufferSize);
             });
@@ -151,7 +151,7 @@ namespace WASAPI {
             close();
         }
 
-        void start(const std::shared_ptr<IOHandler>& callback) {
+        void start(const std::shared_ptr<IOHandler<float>>& callback) {
             std::lock_guard<std::mutex> lock(mutex);
             callbackHandler = callback;
             recorder.pAudioClient.start();

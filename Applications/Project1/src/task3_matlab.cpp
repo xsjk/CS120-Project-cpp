@@ -28,15 +28,15 @@ using namespace ASIO;
 std::vector<float> preamble, carrier;
 std::vector<float> sSignal, rSignal;
 
-class Senceiver : public IOHandler {
-    void outputCallback(DataView &buffer) noexcept override {
+class Senceiver : public IOHandler<float> {
+    void outputCallback(DataView<float> &buffer) noexcept override {
         static auto sampleIndex = 0;
         for (auto i = 0; i < buffer.getNumSamples(); i++, sampleIndex++) {
             buffer(0, i) = sampleIndex < sSignal.size() ? sSignal[sampleIndex] : 0;
             buffer(1, i) = sampleIndex < sSignal.size() ? sSignal[sampleIndex] : 0;
         }
     }
-    void inputCallback(const DataView &buffer) noexcept override {
+    void inputCallback(const DataView<float> &buffer) noexcept override {
         static auto sampleIndex = 0;
         for (auto i = 0; i < buffer.getNumSamples(); i++, sampleIndex++) {
             rSignal.emplace_back(buffer(0, i));

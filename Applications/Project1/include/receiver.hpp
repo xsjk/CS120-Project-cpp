@@ -20,7 +20,7 @@ class Receiver {
 
     } state = State::Calibrating;
     
-    std::queue<Modem::Symbol> inputQueue;
+    std::vector<bool> inputBits;
 
     std::vector<float> inputBuffer; // the buffer to store signal for symbol decoding
 
@@ -38,31 +38,16 @@ public:
     Receiver(Modem &modem, Preamble &preamble, int package_size) : modem(modem), preamble(preamble), package_size(package_size) {}
 
     bool available() {
-        return !inputQueue.empty();
+        return !inputBits.empty();
     }
 
+    // clear inputBits and return the data
     std::vector<bool> read() {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (inputQueue.empty())
-            return {};
-        else {
-            auto symbol_count = modem.symbol_count;
-            int bit_per_symbol = std::log2(symbol_count);
-            auto symbol_mask = (1 << bit_per_symbol) - 1;
-            std::vector<bool> data;
-            while (!inputQueue.empty()) {
-                auto symbol = inputQueue.front();
-                for (bool bits: modem.symbol_to_bits(symbol))
-                    data.push_back(bits);
-                inputQueue.pop();
-            }
-            return data;
-        }
+        return std::move(inputBits);
     }
-
 
     int cur_package_index = 0;
-    void handleCallback(const DataView &p) noexcept {
+    void handleCallback(const DataView<float> &p) noexcept {
 
         std::lock_guard<std::mutex> lock(mutex);
 
@@ -119,7 +104,10 @@ public:
                             switch (modem.symbol_type(symbol)) {
                                 case Modem::SymbolType::Data:
                                     // std::cout << "(Receiver) Data symbol: " << (int)symbol << '\n';
-                                    inputQueue.push(symbol);
+
+                                    // transform symbol to bits and extend inputBits
+                                    modem.symbol_to_bits(symbol, inputBits);
+
                                     if (++cur_package_index == package_size) {
                                         // std::cout << "(Receiver) Package finished" << '\n';
                                         cur_package_index = 0;

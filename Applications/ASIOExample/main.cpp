@@ -17,12 +17,12 @@
 
 using namespace ASIO;
 
-class SineWave : public IOHandler {
+class SineWave : public IOHandler<float> {
     std::ofstream file;
     float phase = 0;
 public:
 
-    void outputCallback(DataView &p) noexcept override {
+    void outputCallback(DataView<float> &p) noexcept override {
         for (auto i = 0; i < p.getNumSamples(); i++) {
             phase += 2 * std::numbers::pi * 440 / p.getSampleRate();
             p(0, i) = std::sin(phase);
@@ -32,7 +32,7 @@ public:
 
 };
 
-class Recorder : public IOHandler {
+class Recorder : public IOHandler<float> {
     std::ofstream file;
     std::queue<float> data;
 
@@ -42,7 +42,7 @@ public:
         file.open("test.txt");
     }
 
-    void inputCallback(const DataView &inputData) noexcept override {
+    void inputCallback(const DataView<float> &inputData) noexcept override {
         auto availableFrameCnt = inputData.getNumSamples();
         for (auto i = 0; i < availableFrameCnt; i++) {
             float v = inputData(0, i);
@@ -51,7 +51,7 @@ public:
         }
     }
 
-    void outputCallback(DataView &outputData) noexcept override {
+    void outputCallback(DataView<float> &outputData) noexcept override {
         for (auto i = 0; i < outputData.getNumSamples(); i++) {
             if (data.empty()) {
                 std::cout << "No more data to play" << std::endl;

@@ -20,11 +20,11 @@
 using namespace WASAPI;
 
 
-class SineWave : public IOHandler {
+class SineWave : public IOHandler<float> {
     float phase1 = 0, phase2 = 0;
 public:
 
-    void outputCallback(DataView &p) noexcept override {
+    void outputCallback(DataView<float> &p) noexcept override {
         for (auto i = 0; i < p.getNumSamples(); i++) {
             phase1 += 2 * std::numbers::pi * 1000 / p.getSampleRate();
             phase2 += 2 * std::numbers::pi * 10000 / p.getSampleRate();

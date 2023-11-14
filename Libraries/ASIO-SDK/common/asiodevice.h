@@ -35,7 +35,7 @@ namespace ASIO {
         AsioDrivers drivers;
         ASIODriverInfo driverInfo;
         std::vector<ASIOBufferInfo> bufferInfo;
-        std::shared_ptr<IOHandler> ioHandler;
+        std::shared_ptr<IOHandler<float>> ioHandler;
         std::vector<int *> rawInBuffers, rawOutBuffers;
 
     protected:
@@ -48,7 +48,7 @@ namespace ASIO {
     public:
         Device(std::string name = "ASIO4ALL v2");
         void open(int input_channels = 2, int output_channels = 2, double sample_rate = 44100);
-        void start(std::shared_ptr<IOHandler>);
+        void start(std::shared_ptr<IOHandler<float>>);
         void stop();
         void close();
         virtual void restart();

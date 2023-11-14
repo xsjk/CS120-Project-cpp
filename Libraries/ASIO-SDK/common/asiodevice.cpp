@@ -78,7 +78,7 @@ namespace ASIO {
     }
 
 
-    void Device::start(std::shared_ptr<IOHandler> handler) {
+    void Device::start(std::shared_ptr<IOHandler<float>> handler) {
         std::lock_guard<std::mutex> lock(ioHandlerLock);
         ioHandler = std::move(handler);
     }
@@ -163,9 +163,9 @@ namespace ASIO {
                 std::memset(outputChannelData[i], 0, bufferSize * sizeof(int));
             return;
         }
-        auto inputData = DataView(inputChannelData, numInputChans, bufferSize, currentSampleRate);
+        auto inputData = DataView<float>(inputChannelData, numInputChans, bufferSize, currentSampleRate);
         ioHandler->inputCallback(inputData);
-        auto outputData = DataView(outputChannelData, numOutputChans, bufferSize, currentSampleRate);
+        auto outputData = DataView<float>(outputChannelData, numOutputChans, bufferSize, currentSampleRate);
         ioHandler->outputCallback(outputData);
     }
 

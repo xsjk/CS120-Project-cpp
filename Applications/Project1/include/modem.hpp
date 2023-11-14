@@ -31,7 +31,7 @@ struct Modem {
         return {encode(symbol), symbol_duration, "Symbol " + std::to_string(symbol)};
     }
 
-    virtual std::vector<bool> symbol_to_bits(Symbol symbol) = 0;
+    virtual void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) = 0;
     virtual std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) = 0;
 
     virtual Generator<float> create_calibrate() = 0;
@@ -114,12 +114,10 @@ public:
     //     return funcs;
     // }
 
-    std::vector<bool> symbol_to_bits(Symbol symbol) {
-        std::vector<bool> bits;
+    void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) {
         int bit_per_symbol = std::log2(symbol_count - 1);
         for (int i = 0; i < bit_per_symbol; i++)
             bits.push_back((symbol >> i) & 1);
-        return bits;
     }
 
     std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) {
@@ -359,10 +357,8 @@ public:
             return -2;
     }
 
-    std::vector<bool> symbol_to_bits(Symbol symbol) override {
-        std::vector<bool> bits;
+    void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) override {
         bits.push_back(symbol);
-        return bits;
     }
     std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) override {
         std::vector<Symbol> symbols(bits.size());
@@ -513,16 +509,14 @@ public:
     }
 
 
-    std::vector<bool> symbol_to_bits(Symbol symbol) override {
-        std::vector<bool> bits;
+    void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) override {
         if (order == 1) {
             bits.push_back(symbol);
-            return bits;
+            return;
         }
         int bit_per_symbol = std::log2(symbol_count);
         for (int i = 0; i < bit_per_symbol; i++)
             bits.push_back((symbol >> i) & 1);
-        return bits;
     }
 
     std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) override {
@@ -569,10 +563,8 @@ struct DigitalModem : Modem {
             sum += y[i];
         return sum > 0 ? 0 : 1;
     }
-    std::vector<bool> symbol_to_bits(Symbol symbol) override {
-        std::vector<bool> bits;
+    void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) override {
         bits.push_back(symbol);
-        return bits;
     }
     std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) override {
         std::vector<Symbol> symbols(bits.size());
