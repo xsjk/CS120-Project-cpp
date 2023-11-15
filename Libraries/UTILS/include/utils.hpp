@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 
 template<int start, int end>
 inline void static_for(auto&& f) {
@@ -39,6 +40,11 @@ constexpr int count_bits(int n) {
     return count;
 }
 
+static constexpr auto sorted(auto arr) {
+    auto ret = arr;
+    std::sort(ret.begin(), ret.end());
+    return ret;
+}
 
 
 template<class T1, class T2>
