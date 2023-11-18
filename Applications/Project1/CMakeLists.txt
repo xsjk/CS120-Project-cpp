@@ -9,6 +9,7 @@ target_link_libraries(PhysicalLayer
     INTERFACE
         WASAPI
         ASIO
+        ASIO_JUCE
         Signal
 )
 

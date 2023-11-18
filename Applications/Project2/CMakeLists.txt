@@ -6,4 +6,5 @@ target_link_libraries(project2_main
 
 target_include_directories(project2_main
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
