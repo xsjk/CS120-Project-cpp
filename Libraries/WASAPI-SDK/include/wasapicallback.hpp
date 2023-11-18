@@ -68,10 +68,12 @@ namespace WASAPI {
         virtual void inputCallback(const AudioDataProxy<short, V> &inputData) noexcept {
             inputCallback(reinterpret_cast<const DataView<float> &>(inputData));
         }
+        virtual void inputCallback(AudioDataProxy<short, V> && d) noexcept { inputCallback(d); }
         virtual void outputCallback(AudioDataProxy<short, V> &outputData) noexcept {
             inputCallback(reinterpret_cast<DataView<float> &>(outputData));
         }
         virtual void inputCallback(const DataView<float> &) noexcept {}
+        virtual void inputCallback(DataView<float> && d) noexcept { inputCallback(d); }
         virtual void outputCallback(DataView<float> &) noexcept {}
     };
 

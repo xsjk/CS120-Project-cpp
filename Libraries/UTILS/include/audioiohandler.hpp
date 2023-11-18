@@ -156,5 +156,6 @@ public:
 template <typename T, typename V>
 struct AudioIOHandler {
     virtual void inputCallback(const AudioDataProxy<T, V> &inputData) noexcept = 0;
+    virtual void inputCallback(AudioDataProxy<T, V> &&inputData) noexcept { inputCallback(inputData); }
     virtual void outputCallback(AudioDataProxy<T, V> &outputData) noexcept = 0;
 };

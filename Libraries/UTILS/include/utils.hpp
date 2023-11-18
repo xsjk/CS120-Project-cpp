@@ -1,6 +1,9 @@
 #pragma once
 
 #include <algorithm>
+#include <vector>
+#include <span>
+#include <ranges>
 
 template<int start, int end>
 inline void static_for(auto&& f) {
@@ -9,6 +12,60 @@ inline void static_for(auto&& f) {
         static_for<start + 1, end>(std::forward<decltype(f)>(f));
     }
 }
+
+
+class BitsContainer : public std::vector<bool> {
+
+public:
+    using std::vector<bool>::vector;
+    using std::vector<bool>::operator=;
+
+    auto data() const { return begin()._M_p; }
+
+    template<typename T>
+    auto as_span() { return std::span((T*)data(), size() / CHAR_BIT / sizeof(T)); }
+
+    template<typename T>
+    auto as_span() const { return std::span((const T*)data(), size() / CHAR_BIT / sizeof(T)); }
+
+    template<typename T>
+    void push(T t) {
+        if constexpr (std::is_same_v<std::decay_t<T>, bool>)
+            push_back(t);
+        else {
+            for (int i = 0; i < sizeof(T) * CHAR_BIT; i++) {
+                push_back(t & 1);
+                t >>= 1;
+            }
+        }
+    }
+
+};
+
+
+class ByteContainer : public std::vector<uint8_t> {
+
+public:
+    using std::vector<uint8_t>::vector;
+    using std::vector<uint8_t>::operator=;
+
+    template<typename T>
+    auto as_span() { return std::span((T*)data(), size() / sizeof(T)); }
+
+    template<typename T>
+    auto as_span() const { return std::span((const T*)data(), size() / sizeof(T)); }
+
+    void push(const auto& t) {
+        for (auto c: std::span((const uint8_t*)&t, sizeof(t))) 
+            push_back(c);
+    }
+
+    void add_header(const auto& t) {
+        auto sp = std::span((const uint8_t*)&t, sizeof(t));
+        insert(begin(), sp.begin(), sp.end());
+    }
+
+};
 
 
 float mean(auto v) {

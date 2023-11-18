@@ -164,7 +164,7 @@ namespace ASIO {
             return;
         }
         auto inputData = DataView<float>(inputChannelData, numInputChans, bufferSize, currentSampleRate);
-        ioHandler->inputCallback(inputData);
+        ioHandler->inputCallback(std::move(inputData));
         auto outputData = DataView<float>(outputChannelData, numOutputChans, bufferSize, currentSampleRate);
         ioHandler->outputCallback(outputData);
     }

@@ -71,10 +71,12 @@ namespace ASIO {
         virtual void inputCallback(const AudioDataProxy<int, V> &inputData) noexcept {
             inputCallback(reinterpret_cast<const DataView<V> &>(inputData));
         }
+        virtual void inputCallback(AudioDataProxy<int, V> &&inputData) noexcept { inputCallback(inputData); }
         virtual void outputCallback(AudioDataProxy<int, V> &outputData) noexcept {
             inputCallback(reinterpret_cast<DataView<V> &>(outputData));
         }
         virtual void inputCallback(const DataView<V> &) noexcept { }
+        virtual void inputCallback(DataView<V> && inputData) noexcept { inputCallback(inputData); }
         virtual void outputCallback(DataView<V> &) noexcept { }
     };
 

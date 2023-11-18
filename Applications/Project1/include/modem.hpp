@@ -572,6 +572,12 @@ struct DigitalModem : Modem {
             symbols[i] = bits[i];
         return symbols;
     }
+
+    Generator<float> create_calibrate() override {
+        /// Maybe implemented later
+        return Generator<float>([](int i) { return 0; }, 0, "Modem Calibrate");
+    }
+
     
 };
 

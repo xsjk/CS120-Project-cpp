@@ -126,7 +126,7 @@ namespace WASAPI {
                 if (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR)
                     std::cerr << "AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR" << std::endl;
                 auto view = DataView<float>(pData, numFrames, sampleRate);
-                self->callbackHandler->inputCallback(view);
+                self->callbackHandler->inputCallback(std::move(view));
                 self->recorder.client.release_buffer(numFrames);
                 
             });

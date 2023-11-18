@@ -24,11 +24,10 @@ namespace Physical {
         } }
     };
     
+    auto io = std::make_shared<Physical::BitStreamDeviceIOHandler<decltype(Physical::config.preamble), decltype(Physical::config.modem)>>(std::move(Physical::config));
+
     struct BitStreamDevice {
 
-        using IOHandler = BitStreamDeviceIOHandler<decltype(config.preamble), decltype(config.modem)>;
-
-        std::shared_ptr<IOHandler> io = std::make_shared<IOHandler>(std::move(config));
         std::shared_ptr<Device> device;
 
         BitStreamDevice() {
