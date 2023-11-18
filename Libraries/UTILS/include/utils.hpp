@@ -4,6 +4,7 @@
 #include <vector>
 #include <span>
 #include <ranges>
+#include <bitset>
 
 template<int start, int end>
 inline void static_for(auto&& f) {
@@ -40,6 +41,22 @@ public:
         }
     }
 
+    template<size_t N>
+    auto get(size_t i) {
+        std::bitset<N> bs;
+        for (int j = 0; j < N; j++) {
+            bs[j] = operator[](i * N + j);
+        }
+        return bs;
+    }
+
+    template<size_t N>
+    void push(std::bitset<N> bs) {
+        for (int i = 0; i < N; i++) {
+            push_back(bs[i]);
+        }
+    }
+
 };
 
 
@@ -56,7 +73,7 @@ public:
     auto as_span() const { return std::span((const T*)data(), size() / sizeof(T)); }
 
     void push(const auto& t) {
-        for (auto c: std::span((const uint8_t*)&t, sizeof(t))) 
+        for (auto c: std::span((const uint8_t*)&t, sizeof(t)))
             push_back(c);
     }
 
