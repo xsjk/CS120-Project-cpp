@@ -27,3 +27,15 @@ target_link_libraries(naive-one
     PRIVATE
         PhysicalLayer
 )
+
+add_executable(naive-sender src/naive-sender.cpp)
+target_link_libraries(naive-sender
+    PRIVATE
+        PhysicalLayer
+)
+
+add_executable(naive-receiver src/naive-receiver.cpp)
+target_link_libraries(naive-receiver
+    PRIVATE
+        PhysicalLayer
+)
