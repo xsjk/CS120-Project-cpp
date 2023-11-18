@@ -13,7 +13,6 @@ add_subdirectory(ASIOAudioExample)
 add_subdirectory(UARTExample)
 add_subdirectory(WASAPIExample)
 add_subdirectory(JUCEExample)
-add_subdirectory(AudioLatencyDemo)
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test)
     add_subdirectory(test)
