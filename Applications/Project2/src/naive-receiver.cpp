@@ -24,8 +24,7 @@
 #include "signal.hpp"
 #include "CRC.hpp"
 
-#include "asiodevice.h"
-using namespace ASIO;
+#include "device.hpp"
 
 
 class Receiver : public IOHandler<float> {
@@ -34,13 +33,15 @@ class Receiver : public IOHandler<float> {
     std::vector<float> rSignal;
 
     const float threshold = 3;
-    const int packetBits = 500;
+    const int bytesPerCRCCheck = 39;
+    const int packetBits = (bytesPerCRCCheck + 1) * 10;
     const int crcBits = 8;
     const int carrierSize = 2;
     const int interSize = 10;
 
     BitsContainer rData;
     BitsContainer rDataEncoded;
+    ByteContainer rDataDecoded;
     
 public:
 
@@ -71,10 +72,12 @@ public:
         // send ack if input succeeds
         auto i = 0;
         while (ack_to_send) {
+            std::cout << "Send ACK" << std::endl;
             for (; i < preamble.size(); i++)
                 output(0, i) = preamble[preamble.size() - i - 1];
             for (; i < interSize; i++)
                 output(0, i) = 0;
+            ack_to_send --;
         }
         for (; i < output.getNumSamples(); i++)
             output(0, i) = 0;
@@ -88,6 +91,7 @@ public:
     float lastBigSumI = 0;
 
     void inputCallback(const DataView<float> &input) noexcept override {
+
         static auto sampleIndex = 0;
         for (auto i = 0; i < input.getNumSamples(); i++, sampleIndex++) {
             float v = input(0, i);
@@ -112,36 +116,51 @@ public:
             } else {
 
                 buffer.emplace_back(v);
-                if (buffer.size() < (packetBits + crcBits) * carrierSize)
+                if (buffer.size() < packetBits * carrierSize)
                     continue;
-                for (auto sampleIndex = 0; sampleIndex < (packetBits + crcBits) * carrierSize; ) {
+                for (auto sampleIndex = 0; sampleIndex < packetBits * carrierSize; ) {
                     float sum = 0;
-                    for (auto j = 0; j < (packetBits + crcBits); sampleIndex++, j++)
+                    for (auto j = 0; j < carrierSize; sampleIndex++, j++)
                         sum += buffer[sampleIndex] * carrier[j];
                     rDataEncoded.emplace_back(sum > 0 ? 0 : 1);
                 }
+
+                if (rDataEncoded.size() != packetBits) {
+                    std::cout << "ERROR: " << rDataEncoded.size() << std::endl;
+                }
+
+                // to 8b10b
+                for (auto i = 0; i < rDataEncoded.size() / 10 - 1; i++)
+                    rDataDecoded.push_back((uint8_t)B8B10::decode(rDataEncoded.get<10>(i)).to_ulong());
+
+                std::cout << rDataEncoded.size() << ' ' << rDataDecoded.size() << std::endl;
                 // check CRC
-                if (crc_checker.check(rDataEncoded.as_span<uint8_t>()) == true)
+                if (crc_checker.check(
+                    std::span(rDataDecoded.end() - bytesPerCRCCheck, rDataDecoded.end()),
+                    (uint8_t)B8B10::decode(rDataEncoded.get<10>(bytesPerCRCCheck)).to_ulong())
+                ) {
+                    std::cout << "CRC OK" << std::endl;
                     ack_to_send ++;
+                }
+
+                rDataEncoded.clear();
                 buffer.clear();
                 state = 0;
             }
         }
+
     }
 
 
     ~Receiver() {
 
-        std::ofstream rSignalFile {"rSignal.txt"};
-        for (auto const &d : rSignal) {
-            rSignalFile << d << std::endl;
-        }
 
         std::cout << "Extracting ..." << std::endl;
 
-        // --------------------- apply 8b10b decoding ---------------------
-        for (auto i = 0; i < rDataEncoded.size() / 10; i++)
-            rData.push<8>(B8B10::decode(rDataEncoded.get<10>(i)));
+        std::ofstream rDataFile {"rData.txt"};
+
+        for (auto const &d : rDataEncoded)
+            rDataFile << d << std::endl;
 
         // ----------------------------------------------------------------
 
@@ -157,7 +176,7 @@ public:
 int main() {
 
     auto receiver = std::make_shared<Receiver>();
-    auto device = std::make_shared<Device>();
+    auto device = std::make_shared<Device>("sSignal.txt", 512);
     device->open();
 
     std::cout << std::endl;
@@ -165,7 +184,7 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
     device->start(receiver);
-    std::this_thread::sleep_for(std::chrono::seconds(20));
+    std::this_thread::sleep_for(std::chrono::seconds(60));
     device->stop();
 
 

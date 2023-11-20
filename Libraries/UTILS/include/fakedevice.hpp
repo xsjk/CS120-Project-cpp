@@ -96,11 +96,8 @@ namespace FAKE {
                 auto time = std::chrono::steady_clock::now();
 
                 for (int i = 0; i < self->fakeInput.size(); i += self->buffer_size) {
-                    std::cout << "fake device: " << i << std::endl;
-                    if (stoken.stop_requested()) {
-                        std::cout << "fake device: stop requested" << std::endl;
+                    if (stoken.stop_requested())
                         return;
-                    }
                     auto input = DataView<float> { std::span<float> { self->fakeInput.data() + i, self->buffer_size }, self->sampleRate };
                     handler->inputCallback(std::move(input));
                     auto output = DataView<float> { std::span<float> { fakeOutput } , self->sampleRate };
