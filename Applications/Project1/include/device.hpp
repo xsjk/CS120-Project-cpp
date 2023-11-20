@@ -1,6 +1,6 @@
 #pragma once
 
-#define __ASIO
+#define __JUCE
 #define LOG
 
 #if defined(__WASAPI)

@@ -30,6 +30,7 @@ class ArithmeticProxy {
         }
     }
 
+
 public:
     ArithmeticProxy(T &t) : data(t) { }
     ArithmeticProxy(const ArithmeticProxy<T, V> &) = delete;
@@ -37,8 +38,8 @@ public:
     ArithmeticProxy<T, V> &operator=(const ArithmeticProxy<T, V> &) & = delete;
     ArithmeticProxy<T, V> &operator=(ArithmeticProxy<T, V> &&) & = delete;
 
-    operator V() const &&noexcept { 
-        return convert<T, V>(data); 
+    operator V() const &&noexcept {
+        return convert<T, V>(data);
     }
 
     auto &operator=(ArithmeticProxy<T, V> &&v) && noexcept {
@@ -114,8 +115,8 @@ class AudioDataProxy {
             auto &operator--(int) noexcept { i--; return *this; }
             auto &operator+=(size_t n) noexcept { i += n; return *this; }
             auto &operator-=(size_t n) noexcept { i -= n; return *this; }
-            auto operator+(size_t n) const noexcept { return iterator(dataView, channel, i + n); }
-            auto operator-(size_t n) const noexcept { return iterator(dataView, channel, i - n); }
+            auto operator+(size_t n) const noexcept { return iterator(channelView, i + n); }
+            auto operator-(size_t n) const noexcept { return iterator(channelView, i - n); }
         };
 
     public:
