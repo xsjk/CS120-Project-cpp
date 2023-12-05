@@ -7,6 +7,9 @@ add_subdirectory(Project1)
 project(Project2)
 add_subdirectory(Project2)
 
+project(Project3)
+add_subdirectory(Project3)
+
 project(Example)
 add_subdirectory(ASIOExample)
 add_subdirectory(ASIOAudioExample)

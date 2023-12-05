@@ -1,5 +1,6 @@
 project(Libraries)
 
+add_subdirectory(BOOST)
 add_subdirectory(UTILS)
 add_subdirectory(ASIO-SDK)
 add_subdirectory(WASAPI-SDK)

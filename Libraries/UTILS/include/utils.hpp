@@ -5,6 +5,11 @@
 #include <span>
 #include <ranges>
 #include <bitset>
+#include <iostream>
+#include <typeinfo>
+#include <string>
+#include <memory>
+#include <cxxabi.h>
 
 template<int start, int end>
 inline void static_for(auto&& f) {
@@ -161,4 +166,25 @@ public:
     };
 
 };
+
+
+template <typename T>
+std::string pretty_type_name() {
+    const char* mangledName = typeid(T).name();
+    int status = -1;
+
+    // __cxa_demangle allocates memory for the demangled name using malloc
+    // and returns it. We need to free this memory ourselves.
+    std::unique_ptr<char, void (*)(void*)> demangledName(
+        abi::__cxa_demangle(mangledName, nullptr, nullptr, &status),
+        std::free
+    );
+
+    // If demangling is successful, status is set to 0
+    if (status == 0 && demangledName) {
+        return demangledName.get();
+    } else {
+        return mangledName;
+    }
+}
 
