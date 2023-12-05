@@ -59,6 +59,7 @@ public:
 
     template<Awaitable T>
     void run(T &&coro) {
+        ctx.restart();
         detach_task([&](auto &&coro) -> awaitable<void> {
             try {
                 co_await std::move(coro);
@@ -82,6 +83,25 @@ public:
     template<Awaitable... T>
     static inline auto gather(std::tuple<T...> &&corr) {
         return std::apply([](auto &&... corr) { return (gather(std::move(corr)...)); }, std::move(corr));
+    }
+
+    template<typename V>
+    requires (!std::is_void_v<V>)
+    awaitable<std::vector<V>> gather(std::vector<awaitable<V>> &&coros) {
+        using namespace boost::asio;
+        using namespace boost::asio::experimental;
+        auto [order, errors, results] = co_await make_parallel_group([&]() {
+            using Task = decltype(create_task(std::declval<awaitable<V>>()));
+            std::vector<Task> tasks;
+            std::ranges::transform(coros, std::back_inserter(tasks), [&](auto &&coro) {
+                return create_task(std::move(coro));
+            });
+            return tasks;
+        }()).async_wait(
+            wait_for_all(),
+            deferred
+        );
+        co_return std::move(results);
     }
 
     boost::asio::awaitable<void> sleep(auto time) {
