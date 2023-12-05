@@ -1,0 +1,3 @@
+add_library(Asyncio INTERFACE)
+target_include_directories(Asyncio INTERFACE include)
+target_link_libraries(Asyncio INTERFACE Boost)
