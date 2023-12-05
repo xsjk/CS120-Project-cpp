@@ -3,6 +3,7 @@
 #include <iostream>
 #include <optional>
 #include <ranges>
+#include "utils.hpp"
 
 #define async
 #define def auto
@@ -23,6 +24,12 @@ constexpr bool is_awaitable_v = is_awaitable_t<T>::value;
 template <typename T>
 concept Awaitable = is_awaitable_v<T>;
 
+
+
+struct TimeoutError : std::runtime_error {
+    TimeoutError(auto time) : std::runtime_error(
+        std::format("Timeout after {}", time)) {}
+};
 
 class Asyncio {
     boost::asio::io_context ctx;
@@ -71,9 +78,16 @@ public:
         mainloop();
     }
 
-    template<Awaitable T>
-    auto wait_for(T &&coro, auto time) {
-        return boost::asio::co_spawn(ctx, std::move(coro), boost::asio::use_awaitable) && sleep(time);
+    template<typename V>
+    awaitable<V> wait_for(awaitable<V> &&coro, auto time_out) {
+        std::variant<std::monostate, int> res = co_await (
+            sleep(time_out) || std::move(coro)
+        );
+        try {
+            co_return std::get<V>(res);
+        } catch (const std::bad_variant_access& e) {
+            throw TimeoutError(time_out);
+        }
     }
 
     template<Awaitable... T> 

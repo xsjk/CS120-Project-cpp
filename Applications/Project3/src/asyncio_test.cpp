@@ -34,6 +34,17 @@ int main() {
         co_return;
     }());
 
+    std::cout << "asyncio.wait_for(...) test" << std::endl;
+    asyncio.run([&] () -> awaitable<void> {
+        try {
+            auto r = co_await asyncio.wait_for(task1(), 2s);
+            std::cout << r << std::endl;
+        } catch (const TimeoutError& e) {
+            std::cerr << e.what() << std::endl;
+        }
+        co_return;
+    }());
+
     return 0;
 }
 
