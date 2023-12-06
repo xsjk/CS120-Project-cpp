@@ -15,6 +15,21 @@ async def task2() -> awaitable<int> {
     co_return 1;
 }
 
+async def task3() -> awaitable<void> {
+    for (int i = 0; i < 5; ++i) {
+        std::printf("task3: %d\n", i);
+        co_await asyncio.sleep(1s);
+    }
+    co_return;
+}
+
+def task4() {
+    for (int i = 0; i < 5; ++i) {
+        std::printf("task4: %d\n", i);
+        std::this_thread::sleep_for(1s);
+    }
+}
+
 int main() {
 
     std::cout << "asyncio.gather(...) test" << std::endl;
@@ -37,11 +52,25 @@ int main() {
     std::cout << "asyncio.wait_for(...) test" << std::endl;
     asyncio.run([&] () -> awaitable<void> {
         try {
-            auto r = co_await asyncio.wait_for(task1(), 2s);
-            std::cout << r << std::endl;
+            co_await asyncio.wait_for(task3(), 2s);
         } catch (const TimeoutError& e) {
             std::cerr << e.what() << std::endl;
         }
+        co_return;
+    }());
+
+    std::cout << "asyncio.to_thread(...) test" << std::endl;
+
+    auto f = [](int a, int b) -> int {
+        std::this_thread::sleep_for(5s);
+        return a + b;
+    };
+
+    asyncio.run([&] () -> awaitable<void> {
+        co_await asyncio.gather(
+            task3(), 
+            asyncio.to_thread(task4)
+        );
         co_return;
     }());
 
