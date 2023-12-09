@@ -24,8 +24,8 @@
 #include "signal.hpp"
 #include "CRC.hpp"
 
-#include "device.hpp"
-
+#include "fakedevice.hpp"
+using namespace FAKE;
 
 class Receiver : public IOHandler<float> {
 

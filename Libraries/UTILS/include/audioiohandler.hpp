@@ -1,6 +1,7 @@
 #pragma once
 
 #include <type_traits>
+#include <limits>
 
 template<typename T = int, typename V = float>
     requires std::is_signed_v<T> && std::is_signed_v<V>

@@ -5,6 +5,7 @@
 #include <numbers>
 #include <valarray>
 #include <complex>
+#include <algorithm>
 
 namespace Signals {
 

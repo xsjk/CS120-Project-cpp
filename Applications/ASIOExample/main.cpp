@@ -12,6 +12,7 @@
 #include <limits>
 #include <valarray>
 #include <thread>
+#include <numbers>
 
 #include "asiodevice.h"
 

@@ -20,6 +20,7 @@ target_link_libraries(PhysicalLayer
         WASAPI
         ASIO
         Signal
+        Boost
 )
 
 add_executable(naive-one src/naive-one.cpp)

@@ -8,7 +8,6 @@
 #include "asiosys.h"
 #include "asiodrvr.h"
 #include "asio.h"
-#include "asiodevice.h"
 #include "asiodrivers.h"
 #include "asiocallback.hpp"
 

@@ -10,7 +10,6 @@ typedef interface IASIO IASIO;
 
 interface IASIO : public IUnknown
 {
-
 	virtual ASIOBool init(void *sysHandle) = 0;
 	virtual void getDriverName(char *name) = 0;	
 	virtual long getDriverVersion() = 0;

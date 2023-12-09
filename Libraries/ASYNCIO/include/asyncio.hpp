@@ -7,7 +7,7 @@
 #include <thread>
 #include "utils.hpp"
 
-#define async
+#define async Awaitable
 #define def auto
 
 using boost::asio::awaitable;
@@ -27,7 +27,6 @@ template <typename T>
 concept Awaitable = is_awaitable_v<T>;
 
 
-
 struct TimeoutError : std::runtime_error {
     TimeoutError(auto time) : std::runtime_error(
         std::format("Timeout after {}", time)) { }
@@ -38,7 +37,50 @@ class Asyncio {
     boost::asio::thread_pool pool;
     boost::asio::signal_set signals;
 public:
-    Asyncio() : signals(ctx, SIGINT, SIGTERM) {
+    Asyncio() : signals(ctx, SIGINT, SIGTERM) {}
+
+    template<typename T>
+    auto create_task(awaitable<T> &&coro) {
+        using boost::asio::experimental::awaitable_operators::detail::awaitable_wrap;
+        return boost::asio::co_spawn(ctx, awaitable_wrap(std::move(coro)), boost::asio::deferred);
+    }
+
+    auto create_task(awaitable<void> &&coro) {
+        return boost::asio::co_spawn(ctx, std::move(coro), boost::asio::deferred);
+    }
+
+    /**
+     * @brief run a async function in the background
+     * 
+     * @param coro the awaitable object
+     */
+    template<typename T>
+    def detach_task(awaitable<T> &&coro) -> void {
+        boost::asio::co_spawn(ctx, std::move(coro), boost::asio::detached);
+    }
+    
+    /**
+     * @brief run a sync function in the background
+     *        by creating a task and detaching it
+     * 
+     * @param f the function to run
+     * @note thread safety is not guaranteed 
+     */
+    template<bool use_thread_pool = true>
+    def detach_task(auto &&f) -> void {
+        using F = decltype(f);
+        if constexpr(use_thread_pool)
+            boost::asio::post(pool, std::forward<F>(f));
+        else
+            std::jthread(std::forward<F>(f)).detach();
+    }
+
+    /**
+     * @brief run a async function in a sync context
+     * 
+     * @param coro the awaitable object
+     */
+    void run(async def &&coro) {
         signals.async_wait([&](const boost::system::error_code &error, int signal) {
             if (error) {
                 std::cout << "Error: " << error.message() << std::endl;
@@ -49,106 +91,176 @@ public:
             else if (signal == SIGTERM) {
                 std::cout << "SIGTERM" << std::endl;
             }
-            close();
+            pause();
         });
-    }
+        
+        resume();
 
-    template<Awaitable T>
-    auto create_task(T &&coro) {
-        using boost::asio::experimental::awaitable_operators::detail::awaitable_wrap;
-        return boost::asio::co_spawn(ctx, awaitable_wrap(std::move(coro)), boost::asio::deferred);
-    }
-
-    auto create_task(awaitable<void> &&coro) {
-        return boost::asio::co_spawn(ctx, std::move(coro), boost::asio::deferred);
-    }
-
-    template<Awaitable T>
-    auto detach_task(T &&coro) {
-        return boost::asio::co_spawn(ctx, std::move(coro), boost::asio::detached);
-    }
-
-    template<Awaitable T>
-    void run(T &&coro) {
-        ctx.restart();
-        detach_task([&](auto &&coro) -> awaitable<void> {
+        detach_task([&](async def &&coro) -> awaitable<void> {
             try {
                 co_await std::move(coro);
             }
             catch (const std::exception &e) {
                 std::cout << "Exception: " << e.what() << std::endl;
             }
-            close();
+            pause();
+            co_return;
         }(std::move(coro)));
         mainloop();
     }
 
+    /**
+     * @brief Wait for the single Future or coroutine to complete, with timeout.
+     * 
+     * @tparam V 
+     * @param coro the coroutine to wait for
+     * @param timeout the timeout
+     * @return the result of the coroutine
+     * @throw TimeoutError if the coroutine did not complete before the timeout
+     */
     template<typename V>
-    awaitable<V> wait_for(awaitable<V> &&coro, auto time_out) {
+    async def wait_for(awaitable<V> &&coro, auto timeout) -> awaitable<V> {
         try {
-            co_return std::get<0>(co_await(std::move(coro) || sleep(time_out)));
+            co_return std::get<0>(co_await(std::move(coro) || sleep(timeout)));
         }
         catch (const std::bad_variant_access &e) {
-            throw TimeoutError(time_out);
+            throw TimeoutError(timeout);
         }
     }
 
-    awaitable<void> wait_for(awaitable<void> &&coro, auto time_out) {
+    /**
+     * @brief Wait for the single Future or coroutine to complete, with timeout.
+     * 
+     * @param coro the coroutine to wait for
+     * @param timeout the timeout
+     * @throw TimeoutError if the coroutine did not complete before the timeout
+     */
+    async def wait_for(awaitable<void> &&coro, auto timeout) -> awaitable<void> {
         try {
-            std::get<0>(co_await(std::move(coro) || sleep(time_out)));
+            std::get<0>(co_await(std::move(coro) || sleep(timeout)));
         }
         catch (const std::bad_variant_access &e) {
-            throw TimeoutError(time_out);
+            throw TimeoutError(timeout);
         }
     }
-
-
+    
+    /**
+     * @brief Asynchronously run a sync function in a separate thread.
+     * 
+     * @param f the function to run
+     * @param args... the arguments to pass to @c f
+     * @return a coroutine that can be awaited to get the eventual result of the function
+     */
     template<typename F, typename ...Args, typename R = std::invoke_result_t<F, Args...>>
-    boost::asio::awaitable<std::invoke_result_t<F, Args...>> to_thread(F &&f, Args&&... args) {
-        std::promise<R> promise;
-
-        boost::asio::post(pool, [
-            &p = promise,
-            f = std::forward<F>(f),
-            args = std::make_tuple(std::forward<Args>(args)...)
-        ]() mutable {
-            try {
-                if constexpr (std::is_void_v<R>) {
-                    std::apply(f, std::move(args));
-                    p.set_value();
-                }
-                else {
-                    p.set_value(std::apply(f, std::move(args)));
-                }
-            }
-            catch (...) {
-                p.set_exception(std::current_exception());
-            }
-        });
-
-        auto future = promise.get_future();
-        while (future.wait_for(0s) != std::future_status::ready)
-            co_await sleep(0s);
-
-        if constexpr (std::is_void_v<R>)
-            co_return;
-        else
-            co_return future.get();
+        requires(!std::is_void_v<R>)
+    async def to_thread(F &&f, Args &&...args) -> awaitable<R> {
+        boost::asio::completion_token_for<void(R)> auto token = boost::asio::use_awaitable;
+        using CompletionToken = decltype(token);
+        return boost::asio::async_initiate<CompletionToken, void(R)>(
+            [&] (
+                boost::asio::completion_handler_for<void(R)> auto handler,
+                auto &&f,
+                std::tuple<Args...> &&args
+            ) {
+                auto work = boost::asio::make_work_guard(handler);
+                auto executor = work.get_executor();
+                detach_task([
+                    executor = std::move(executor),
+                    handler = std::move(handler),
+                    f = std::move(f),
+                    args = std::move(args)
+                ]() mutable {
+                    auto alloc = boost::asio::get_associated_allocator(
+                        handler, boost::asio::recycling_allocator<void>());
+                    boost::asio::dispatch(
+                        std::move(executor),
+                        boost::asio::bind_allocator(
+                            alloc, 
+                            std::bind(
+                                std::move(handler), 
+                                std::apply(std::move(f), std::move(args))
+                            )
+                        )
+                    );
+                });
+            }, token,
+            std::function<R(Args...)>(std::forward<F>(f)),
+            std::make_tuple(std::forward<decltype(args)>(args)...)
+        );
     }
 
+
+    /**
+     * @brief Asynchronously run a sync function in a separate thread.
+     * 
+     * @param f the function to run
+     * @param args... the arguments to pass to @c f
+     */
+    template<typename F, typename ...Args>
+        requires(std::is_void_v<std::invoke_result_t<F, Args...>>)
+    async def to_thread(F &&f, Args &&...args) -> awaitable<void>  {
+        boost::asio::completion_token_for<void()> auto token = boost::asio::use_awaitable;
+        using CompletionToken = decltype(token);
+        return boost::asio::async_initiate<CompletionToken, void()>(
+            [&] (
+                boost::asio::completion_handler_for<void()> auto handler,
+                auto &&f,
+                std::tuple<Args...> &&args
+            ) {
+                auto work = boost::asio::make_work_guard(handler);
+                auto executor = work.get_executor();
+
+                detach_task([
+                    executor = std::move(executor),
+                    handler = std::move(handler),
+                    f = std::move(f),
+                    args = std::move(args)
+                ]() mutable {
+                    auto alloc = boost::asio::get_associated_allocator(
+                        handler, boost::asio::recycling_allocator<void>());
+                    std::apply(std::move(f), std::move(args));
+                    boost::asio::dispatch(
+                        std::move(executor),
+                        boost::asio::bind_allocator(alloc, std::move(handler))
+                    );
+                });
+            }, token,
+            std::function<void(Args...)>(std::forward<F>(f)),
+            std::make_tuple(std::forward<decltype(args)>(args)...)
+        );
+    }
+
+
+    /**
+     * @brief Run all coroutines in parallel and wait until all of them are finished.
+     * 
+     * @param corr... the coroutines/futures to aggregate
+     * @return a coroutine wrapping the results in a tuple
+     */
     template<Awaitable... T>
-    static inline auto gather(T&&... corr) { 
+    static inline async def gather(T&&... corr) { 
         return (... && std::forward<T>(corr)); 
     }
 
+    /**
+     * @brief Run all coroutines in parallel and wait until all of them are finished.
+     * 
+     * @param corrs a tuple of coroutines
+     * @return a coroutine wrapping the results in a tuple
+     */
     template<Awaitable... T>
-    static inline auto gather(std::tuple<T...> &&corr) {
-        return std::apply([](auto &&... corr) { return (gather(std::move(corr)...)); }, std::move(corr));
+    static inline async def gather(std::tuple<T...> &&corrs) {
+        return std::apply([](auto &&... corr) { return (gather(std::move(corr)...)); }, std::move(corrs));
     }
 
-    template<typename V>
-        requires (!std::is_void_v<V>)
-    awaitable<std::vector<V>> gather(std::vector<awaitable<V>> &&coros) {
+    /**
+     * @brief Run all coroutines in parallel and wait until all of them are finished.
+     * 
+     * @param corrs a vector of coroutines
+     * @return a coroutine wrapping the results in a vector
+     */
+    template<typename V> requires (!std::is_void_v<V>)
+    async def gather(std::vector<awaitable<V>> &&coros) -> awaitable<std::vector<V>> {
         using namespace boost::asio::experimental;
         auto [order, errors, results] = co_await make_parallel_group([&]() {
             using Task = decltype(create_task(std::declval<awaitable<V>>()));
@@ -164,7 +276,13 @@ public:
         co_return std::move(results);
     }
 
-    awaitable<void> gather(std::vector<awaitable<void>> &&coros) {
+    /**
+     * @brief Run all coroutines in parallel and wait until all of them are finished.
+     * 
+     * @param coros the container of coroutines to wait for
+     * @return a coroutine wrapping void
+     */
+    async def gather(std::vector<awaitable<void>> &&coros) -> awaitable<void> {
         using namespace boost::asio::experimental;
         auto [order, errors] = co_await make_parallel_group([&]() {
             using Task = decltype(create_task(std::declval<awaitable<void>>()));
@@ -180,21 +298,33 @@ public:
         co_return;
     }
 
-    boost::asio::awaitable<void> sleep(auto time) {
+    /**
+     * @brief Coroutine that completes after a given time.
+     * 
+     * @param time duration to sleep (use std::chrono::duration)
+     */
+    async def sleep(auto time) -> awaitable<void> {
         co_await boost::asio::steady_timer(ctx, time).async_wait(boost::asio::use_awaitable);
     }
 
-
-private:
-
-    void close() {
+    def pause() {
         ctx.stop();
-        pool.stop();
+    }
+    
+    def paused() {
+        return ctx.stopped();
     }
 
-    void mainloop() {
+    def resume() {
+        ctx.restart();
+    }
+
+    def mainloop() {
         ctx.run();
-        pool.join();
+    }
+
+    auto &get_context() {
+        return ctx;
     }
 
 } asyncio;

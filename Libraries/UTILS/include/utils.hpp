@@ -9,7 +9,7 @@
 #include <typeinfo>
 #include <string>
 #include <memory>
-#include <cxxabi.h>
+#include <string_view>
 
 template<int start, int end>
 inline void static_for(auto&& f) {
@@ -26,7 +26,13 @@ public:
     using std::vector<bool>::vector;
     using std::vector<bool>::operator=;
 
-    auto data() const { return begin()._M_p; }
+    auto data() const { 
+        #ifdef _MSC_VER
+            return begin()._Myptr;
+        #else
+            return begin()._M_p;
+        #endif
+    }
 
     template<typename T>
     auto as_span() { return std::span((T*)data(), size() / CHAR_BIT / sizeof(T)); }
@@ -168,23 +174,41 @@ public:
 };
 
 
+// template <typename T>
+// std::string pretty_type_name() {
+//     const char* mangledName = typeid(T).name();
+//     int status = -1;
+
+//     // __cxa_demangle allocates memory for the demangled name using malloc
+//     // and returns it. We need to free this memory ourselves.
+//     std::unique_ptr<char, void (*)(void*)> demangledName(
+//         abi::__cxa_demangle(mangledName, nullptr, nullptr, &status),
+//         std::free
+//     );
+
+//     // If demangling is successful, status is set to 0
+//     if (status == 0 && demangledName) {
+//         return demangledName.get();
+//     } else {
+//         return mangledName;
+//     }
+// }
+
+
 template <typename T>
-std::string pretty_type_name() {
-    const char* mangledName = typeid(T).name();
-    int status = -1;
-
-    // __cxa_demangle allocates memory for the demangled name using malloc
-    // and returns it. We need to free this memory ourselves.
-    std::unique_ptr<char, void (*)(void*)> demangledName(
-        abi::__cxa_demangle(mangledName, nullptr, nullptr, &status),
-        std::free
-    );
-
-    // If demangling is successful, status is set to 0
-    if (status == 0 && demangledName) {
-        return demangledName.get();
-    } else {
-        return mangledName;
-    }
+constexpr auto pretty_type_name(const T&) {
+    using namespace std::string_view_literals;
+    #if defined(__clang__) || defined(__GNUC__)
+        constexpr auto prefix = "T = "sv;
+        constexpr auto suffix = "]"sv;
+        constexpr std::string_view function = __PRETTY_FUNCTION__;
+    #elif defined(_MSC_VER)
+        constexpr auto prefix = "get_type_name<"sv;
+        constexpr auto suffix = ">(void)"sv;
+        constexpr std::string_view function = __FUNCSIG__;
+    #else
+        #error Unsupported compiler
+    #endif
+    constexpr auto start = function.find(prefix) + prefix.size();
+    return function.substr(start, function.rfind(suffix) - start);
 }
-

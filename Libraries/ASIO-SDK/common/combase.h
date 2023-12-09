@@ -108,6 +108,8 @@ inheritance and some via nested classes
 #ifndef __COMBASE__
 #define __COMBASE__
 
+#include "combaseapi.h"
+
 /* The DLLENTRY module initialises the module handle on loading */
 
 extern HINSTANCE g_hInst;
