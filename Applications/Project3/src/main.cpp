@@ -21,6 +21,8 @@
 #include <utils.hpp>
 #include <8b10b.h>
 #include <bitset>
+#include <boost/json.hpp>
+#include <sstream>
 
 #include "asyncio.hpp"
 #include "signal.hpp"
@@ -55,7 +57,7 @@ namespace OSI {
                 p[i] = view(0, i);
             rSignalBuffer.commit(view.getNumSamples() * sizeof(float));
 
-            // process received signal in the receiver context (in another thread) 
+            // process received signal in the receiver context (in another thread)
             // so that the inputCallback will not be blocked
             boost::asio::post(receiverContext, [&] {
 
@@ -114,7 +116,7 @@ namespace OSI {
                                 }
                                 if(i != real_payload + 1) {
                                     std::cerr << "Payload size error: " << i << " " << real_payload << std::endl;
-                                } else if (CRCChecker.q == 0) { 
+                                } else if (CRCChecker.q == 0) {
                                     rDataBuffer.commit(real_payload);
                                 }
                                 rSignalQueue.clear();
@@ -192,7 +194,7 @@ namespace OSI {
             carrierSize(c.carrierSize),
             interSize(c.interSize),
             preamble(from_file<float>(c.preambleFile)),
-            carrier(c.carrierSize, 1.f) { 
+            carrier(c.carrierSize, 1.f) {
                 if (packetBits % 8 != 0)
                     throw std::runtime_error(std::format(
                         "Invalid argument \"payload\", the \"packetBits\" should be the multiple of 8,"
@@ -214,8 +216,8 @@ namespace OSI {
         async def async_send(BitsContainer &&data) -> awaitable<void> {
             co_await boost::asio::co_spawn(senderContext, [&](BitsContainer &&data) -> awaitable<void> {
 
-                // the result after adding CRC and applying 8B10B 
-                BitsContainer rawBits; 
+                // the result after adding CRC and applying 8B10B
+                BitsContainer rawBits;
                 auto real_payload = payload;
                 for (auto i = 0; i < data.size() / 8; i++) {
                     // calculate real payload are the beginning of the package
@@ -224,9 +226,9 @@ namespace OSI {
                             real_payload = std::min<int>(data.size() / 8 - i, payload)
                         )));
                     // apply 8B10B to data bits
-                    rawBits.push(B8B10::encode(data.get<8>(i))); 
+                    rawBits.push(B8B10::encode(data.get<8>(i)));
                     // add CRC at the end of the package
-                    if ((i + 1 + payload - real_payload) % payload == 0) 
+                    if ((i + 1 + payload - real_payload) % payload == 0)
                         rawBits.push(B8B10::encode(std::bitset<8>(CRC8<7>::get(data.as_span<uint8_t>().subspan(
                             (i / payload) * payload, real_payload
                         )))));
@@ -248,14 +250,14 @@ namespace OSI {
             co_await boost::asio::co_spawn(senderContext, [&](ByteStreamBuf &sendbuf) -> awaitable<void> {
                 auto q = std::span(boost::asio::buffer_cast<const uint8_t *>(sendbuf.data()), sendbuf.size());
                 auto real_payload = payload;
-                BitsContainer rawBits; 
+                BitsContainer rawBits;
                 for (auto i = 0; i < q.size() / 8; i++) {
                     if (i % payload == 0)
                         rawBits.push(B8B10::encode(std::bitset<8>(
                             real_payload = std::min<int>(q.size() / 8 - i, payload)
                         )));
                     rawBits.push(B8B10::encode(std::bitset<8>(q[i])));
-                    if ((i + 1 + payload - real_payload) % payload == 0) 
+                    if ((i + 1 + payload - real_payload) % payload == 0)
                         rawBits.push(B8B10::encode(std::bitset<8>(CRC8<7>::get(
                             q.subspan((i / payload) * payload, payload)
                         ))));
@@ -315,14 +317,7 @@ int main(int argc, char **argv) {
     return asyncio.run([&]() -> awaitable<int> {
 
         argparse::ArgumentParser program("test");
-        program.add_argument("-i", "--input").flag().default_value("INPUT.bin");
-        program.add_argument("-o", "--output").flag().default_value("OUTPUT.bin");
-        program.add_argument("--threshold").default_value(5.f).scan<'g', float>();
-        program.add_argument("--amplitude").default_value(0.1f).scan<'g', float>();
-        program.add_argument("--payload").default_value(38).scan<'i', int>();
-        program.add_argument("--interSize").default_value(10).scan<'i', int>();
-        program.add_argument("--carrierSize").default_value(2).scan<'i', int>();
-        program.add_argument("--preambleFile").default_value("preamble.txt");
+        program.add_argument("-c", "--configPath").default_value("config.json");
 
         try {
             program.parse_args(argc, argv);
@@ -332,51 +327,67 @@ int main(int argc, char **argv) {
             std::cerr << program;
         }
 
-        auto inputFile = program.get<std::string>("--input");
-        auto outputFile = program.get<std::string>("--output");
+        auto configPath = program.get<std::string>("--configPath");
+        std::ifstream jsonFile(configPath);
+        std::stringstream jsonFileBuffer;
+        jsonFileBuffer << jsonFile.rdbuf();
+        jsonFile.close();
 
-        std::cout << "Input file: " << inputFile << std::endl;
-        std::cout << "Output file: " << outputFile << std::endl;
+        auto parsed = boost::json::parse(jsonFileBuffer.str());
+        auto& configObj = parsed.as_object();
 
-        using namespace std::chrono_literals;
+        try {
 
-        auto physicalLayer = std::make_shared<OSI::AsyncPhysicalLayer>(
-            OSI::AsyncPhysicalLayer::Config {
-                .amplitude = program.get<float>("--amplitude"),
-                .threshold = program.get<float>("--threshold"),
-                .payload = program.get<int>("--payload"),
-                .carrierSize = program.get<int>("--carrierSize"),
-                .interSize = program.get<int>("--interSize"),
-                .preambleFile = program.get<std::string>("--preambleFile")
-            });
+            auto inputFile = std::string(configObj.at("inputFile").as_string());
+            auto outputFile = std::string(configObj.at("outputFile").as_string());
 
-        // --------------------- send bits ---------------------
-        std::cout << std::endl;
-        co_await physicalLayer->async_send(BitsContainer::from_bin(inputFile));
+            std::cout << "Input file: " << inputFile << std::endl;
+            std::cout << "Output file: " << outputFile << std::endl;
 
-        // ------------------ start the device and send ------------------
-        auto device = std::make_shared<Device>();
-        device->open(1, 2);
+            using namespace std::chrono_literals;
+
+            auto physicalLayer = std::make_shared<OSI::AsyncPhysicalLayer>(
+                OSI::AsyncPhysicalLayer::Config {
+                    .amplitude = (float)configObj.at("amplitude").as_double(),
+                    .threshold = (float)configObj.at("threshold").as_double(),
+                    .payload = (int)configObj.at("payload").as_int64(),
+                    .carrierSize = (int)configObj.at("carrierSize").as_int64(),
+                    .interSize = (int)configObj.at("interSize").as_int64(),
+                    .preambleFile = std::string(configObj.at("preambleFile").as_string())
+                });
+
+            // --------------------- send bits ---------------------
+            std::cout << std::endl;
+            co_await physicalLayer->async_send(BitsContainer::from_bin(inputFile));
+
+            // ------------------ start the device and send ------------------
+            auto device = std::make_shared<Device>();
+            device->open(1, 2);
 
 
-        std::cout << std::endl;
-        std::cout << "Starting ..." << std::endl;
-        co_await asyncio.sleep(1s);
+            std::cout << std::endl;
+            std::cout << "Starting ..." << std::endl;
+            co_await asyncio.sleep(1s);
 
-        device->start(physicalLayer);
+            device->start(physicalLayer);
 
-        std::cout << "Sending ..." << std::endl;
-        co_await asyncio.sleep(4s);
+            std::cout << "Sending ..." << std::endl;
+            co_await asyncio.sleep(std::chrono::milliseconds((int)(1000 * configObj.at("time").as_double())));
 
-        device->stop();
+            device->stop();
 
-        // --------------------- save data to file ---------------------
+            // --------------------- save data to file ---------------------
 
-        std::cout << "Saving ..." << std::endl;
-        auto rData = co_await physicalLayer->async_read();
-        rData.to_bin(outputFile);
-        rData.to_file("rData.txt");
-        co_return 0;
+            std::cout << "Saving ..." << std::endl;
+            auto rData = co_await physicalLayer->async_read();
+            rData.to_bin(outputFile);
+            rData.to_file("rData.txt");
+            co_return 0;
+
+        } catch (const std::exception &err) {
+            std::cerr << err.what() << std::endl;
+            co_return -1;
+        }
 
     }());
 
