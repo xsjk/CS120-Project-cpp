@@ -26,6 +26,7 @@
 
 #include "fakedevice.hpp"
 using namespace FAKE;
+using namespace utils;
 
 class Receiver : public IOHandler<float> {
 
@@ -35,7 +36,6 @@ class Receiver : public IOHandler<float> {
     const float threshold = 3;
     const int bytesPerCRCCheck = 39;
     const int packetBits = (bytesPerCRCCheck + 1) * 10;
-    const int crcBits = 8;
     const int carrierSize = 2;
     const int interSize = 10;
 

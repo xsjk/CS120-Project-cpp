@@ -45,8 +45,8 @@ namespace WASAPI {
         using AudioDataProxy<short, V>::getSampleRate;
         using AudioDataProxy<short, V>::size;
 
-        DataView(BYTE *pBuffer, size_t bufferSize, double sampleRate) :
-            AudioDataProxy<short, V>(2, bufferSize, sampleRate),
+        DataView(BYTE *pBuffer, int channels, size_t bufferSize, double sampleRate) :
+            AudioDataProxy<short, V>(channels, bufferSize, sampleRate),
             data((short *)pBuffer) { }
 
         ArithmeticProxy<short> operator()(size_t i, size_t j) noexcept override {

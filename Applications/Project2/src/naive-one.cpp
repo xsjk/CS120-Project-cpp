@@ -25,6 +25,7 @@
 
 #include "asiodevice.h"
 using namespace ASIO;
+using namespace utils;
 
 std::vector<float> preamble, carrier;
 std::vector<float> sSignal, rSignal;

@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <cmath>
 
+using namespace utils;
+
 namespace Physical {
 
     auto config = BitStreamDeviceConfig {

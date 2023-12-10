@@ -11,7 +11,7 @@
 template<std::uint8_t gen_poly>
 struct CRC8 {
 
-    static constexpr std::array<std::uint16_t, 256> prod = sorted([] {
+    static constexpr std::array<std::uint16_t, 256> prod = utils::sorted([] {
         std::uint16_t gen = gen_poly | (1 << 8);
         std::array<std::uint16_t, 256> p {};
         for (std::uint16_t i = 0; i < 256; ++i)

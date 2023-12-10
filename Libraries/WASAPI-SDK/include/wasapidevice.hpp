@@ -113,6 +113,7 @@ namespace WASAPI {
 
             trigger.add(recorder.eventHandle, [
                 self=self, 
+                inputChannels=input_channels,
                 sampleRate=sampleRate
             ] {
                 std::lock_guard<std::mutex> lock(self->mutex);
@@ -125,7 +126,7 @@ namespace WASAPI {
                     std::cerr << "AUDCLNT_BUFFERFLAGS_SILENT" << std::endl;
                 if (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR)
                     std::cerr << "AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR" << std::endl;
-                auto view = DataView<float>(pData, numFrames, sampleRate);
+                auto view = DataView<float>(pData, inputChannels, numFrames, sampleRate);
                 self->callbackHandler->inputCallback(std::move(view));
                 self->recorder.client.release_buffer(numFrames);
                 
@@ -134,12 +135,13 @@ namespace WASAPI {
             trigger.add(player.eventHandle, [
                 self=self, 
                 bufferSize=playerBufferSize, 
+                outputChannels=output_channels,
                 sampleRate=sampleRate
             ] {
                 std::lock_guard<std::mutex> lock(self->mutex);
                 if (self->callbackHandler == nullptr) return;
                 auto pData = self->player.client.get_buffer(bufferSize);
-                auto view = DataView<float>(pData, bufferSize, sampleRate);
+                auto view = DataView<float>(pData, outputChannels, bufferSize, sampleRate);
                 self->callbackHandler->outputCallback(view);
                 self->player.client.release_buffer(bufferSize);
             });

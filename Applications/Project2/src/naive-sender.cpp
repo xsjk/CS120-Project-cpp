@@ -25,6 +25,7 @@
 
 #include "asiodevice.h"
 using namespace ASIO;
+using namespace utils;
 
 
 class Sender : public IOHandler<float> {

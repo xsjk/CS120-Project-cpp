@@ -32,6 +32,15 @@ struct TimeoutError : std::runtime_error {
         std::format("Timeout after {}", time)) { }
 };
 
+
+class Context : public boost::asio::io_context {
+    std::jthread thread;
+    boost::asio::io_context::work work;
+public:
+    Context() : work(*this), thread([&] { run(); }) {}
+};
+
+
 class Asyncio {
     boost::asio::io_context ctx;
     boost::asio::thread_pool pool;
@@ -63,6 +72,7 @@ public:
      * @brief run a sync function in the background
      *        by creating a task and detaching it
      * 
+     * @tparam use_thread_pool use the thread pool instead of creating a new thread
      * @param f the function to run
      * @note thread safety is not guaranteed 
      */
@@ -80,7 +90,8 @@ public:
      * 
      * @param coro the awaitable object
      */
-    void run(async def &&coro) {
+    template<typename T>
+    T run(awaitable<T> &&coro) {
         signals.async_wait([&](const boost::system::error_code &error, int signal) {
             if (error) {
                 std::cout << "Error: " << error.message() << std::endl;
@@ -96,13 +107,40 @@ public:
         
         resume();
 
+        std::unique_ptr<T> result;
+
         detach_task([&](async def &&coro) -> awaitable<void> {
-            try {
-                co_await std::move(coro);
+            result = std::make_unique<T>(co_await std::move(coro));
+            pause();
+            co_return;
+        }(std::move(coro)));
+        mainloop();
+
+        return std::move(*result);
+    }
+
+    /**
+     * @brief run a async function in a sync context
+     * 
+     * @param coro the awaitable object
+     */
+    void run(awaitable<void> &&coro) {
+        signals.async_wait([&](const boost::system::error_code &error, int signal) {
+            if (error) {
+                std::cout << "Error: " << error.message() << std::endl;
             }
-            catch (const std::exception &e) {
-                std::cout << "Exception: " << e.what() << std::endl;
+            else if (signal == SIGINT) {
+                std::cout << "SIGINT" << std::endl;
             }
+            else if (signal == SIGTERM) {
+                std::cout << "SIGTERM" << std::endl;
+            }
+            pause();
+        });
+        
+        resume();
+        detach_task([&](async def &&coro) -> awaitable<void> {
+            co_await std::move(coro);
             pause();
             co_return;
         }(std::move(coro)));
@@ -238,7 +276,7 @@ public:
      * @return a coroutine wrapping the results in a tuple
      */
     template<Awaitable... T>
-    static inline async def gather(T&&... corr) { 
+    static async def gather(T&&... corr) { 
         return (... && std::forward<T>(corr)); 
     }
 
@@ -249,7 +287,7 @@ public:
      * @return a coroutine wrapping the results in a tuple
      */
     template<Awaitable... T>
-    static inline async def gather(std::tuple<T...> &&corrs) {
+    static async def gather(std::tuple<T...> &&corrs) {
         return std::apply([](auto &&... corr) { return (gather(std::move(corr)...)); }, std::move(corrs));
     }
 
@@ -303,27 +341,28 @@ public:
      * 
      * @param time duration to sleep (use std::chrono::duration)
      */
-    async def sleep(auto time) -> awaitable<void> {
-        co_await boost::asio::steady_timer(ctx, time).async_wait(boost::asio::use_awaitable);
+    static async def sleep(auto time) -> awaitable<void> {
+        auto executor = co_await boost::asio::this_coro::executor;
+        co_await boost::asio::steady_timer(executor, time).async_wait(boost::asio::use_awaitable);
     }
 
-    def pause() {
+    def pause() -> void {
         ctx.stop();
     }
     
-    def paused() {
+    def paused() -> bool {
         return ctx.stopped();
     }
 
-    def resume() {
+    def resume() -> void {
         ctx.restart();
     }
 
-    def mainloop() {
+    def mainloop() -> void {
         ctx.run();
     }
 
-    auto &get_context() {
+    def &get_context() {
         return ctx;
     }
 
