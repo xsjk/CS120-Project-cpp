@@ -62,85 +62,113 @@ namespace OSI {
             boost::asio::post(receiverContext, [&] {
 
                 static int fromLastPreamble = 0;
-                static std::deque<float> rSignalQueue;
                 static std::ofstream rSignalFile { "rSignal.txt" };
-                static BitsContainer rDataEncoded;
                 static CRC8<0x7> CRCChecker;
                 static enum class ReceiveState : char {
                     preambleDetection,
                     dataExtraction
                 } receiveState = ReceiveState::preambleDetection;
 
+                auto rSignal = std::span(boost::asio::buffer_cast<const float *>(rSignalBuffer.data()), rSignalBuffer.size() / sizeof(float));
 
-                auto p = std::span(boost::asio::buffer_cast<const float *>(rSignalBuffer.data()), rSignalBuffer.size() / sizeof(float));
-
-                float sum = 0;
-                for (auto t = 0; t < p.size(); t++, fromLastPreamble++) {
-                    rSignalFile << p[t] << '\n';
-                    rSignalQueue.push_back(p[t]);
+                for (auto t = 0; t < rSignal.size(); t++, fromLastPreamble++) {
+                    rSignalFile << rSignal[t] << '\n';
                     switch (receiveState) {
                         case ReceiveState::preambleDetection:
-                            if (rSignalQueue.size() < preamble.size())
-                                continue;
-                            sum = 0;
-                            for (auto tt = 0; tt < preamble.size(); tt++)
-                                sum += rSignalQueue[tt] * preamble[tt];
-                            rSignalQueue.pop_front();
-                            if (sum > threshold && fromLastPreamble > preamble.size()) {
-                                fromLastPreamble = 0;
-                                rSignalQueue.clear();
-                                receiveState = ReceiveState::dataExtraction;
+                            {
+                                static std::deque<float> rSignalQueue;
+                                rSignalQueue.push_back(rSignal[t]);
+                                if (rSignalQueue.size() < preamble.size())
+                                    continue;
+                                float sum = 0;
+                                for (auto tt = 0; tt < preamble.size(); tt++)
+                                    sum += rSignalQueue[tt] * preamble[tt];
+                                rSignalQueue.pop_front();
+                                if (sum > threshold && fromLastPreamble > preamble.size()) {
+                                    fromLastPreamble = 0;
+                                    rSignalQueue.clear();
+                                    receiveState = ReceiveState::dataExtraction;
+                                }
                             }
                             break;
                         case ReceiveState::dataExtraction:
                             {
-                                auto p = boost::asio::buffer_cast<uint8_t *>(rDataBuffer.prepare(packetBits / 8));
-                                if (rSignalQueue.size() < packetBits * carrierSize)
-                                    continue;
-                                auto i = 0;
-                                CRCChecker.reset();
+                                static enum class Receiving : char { len, data, crc } cur = Receiving::len;
+                                static payload_size_t real_payload = 0;
+                                static BitsContainer rDataEncoded; // bits encoded with 8B10B and container length, data and crc.
+                                static ByteContainer rDataDecoded; // bytes only contains decoded data
 
-                                enum class Receiving : char { len, data, crc } cur = Receiving::len;
-                                payload_size_t real_payload = 0;
-                                for (auto t = 0; t < std::min<int>(packetBits, (sizeof(payload_size_t) + real_payload + 1) * 10) * carrierSize ; ) {
-                                    sum = 0;
-                                    for (auto tt = 0; tt < carrierSize; t++, tt++)
-                                        sum += rSignalQueue[t] * carrier[tt];
+                                // get rDataEncoded from rSignal                                
+                                static auto dt = 0;
+                                static float sum = 0;
+                                sum += rSignal[t] * carrier[dt];
+                                dt++;
+                                if (dt % carrierSize == 0) {
                                     rDataEncoded.push_back(sum < 0);
-                                    if (rDataEncoded.size() % 10 == 0) {
-                                        auto lastIndex = rDataEncoded.size() / 10 - 1;
-                                        auto bitset = B8B10::decode(rDataEncoded.get<10>(lastIndex));
-                                        auto byte = (uint8_t)bitset.to_ulong();
+                                    sum = 0;
+                                    dt = 0;
+                                    
+                                    if (rDataEncoded.size() > 0 && rDataEncoded.size() % 10 == 0) {
+                                        auto lastrDataIndex = rDataEncoded.size() / 10 - 1;
+                                        uint8_t byte;
+                                        try {
+                                            byte = (uint8_t)B8B10::decode(rDataEncoded.get<10>(lastrDataIndex)).to_ulong();
+                                        } catch (const std::exception& e) {
+                                            std::cerr << "8B10B decode error" << std::endl;
+                                            receiveState = ReceiveState::preambleDetection;
+                                            continue;
+                                        }
                                         switch (cur) {
                                             case Receiving::len:
-                                                real_payload |= (payload_size_t)byte << 8 * lastIndex;
+                                                real_payload |= (payload_size_t)byte << 8 * lastrDataIndex;
                                                 if (rDataEncoded.size() / 10 == sizeof(payload_size_t)) {
-                                                    rDataEncoded.clear();
-                                                    cur = Receiving::data;
+                                                    if (real_payload > 0) {
+                                                        cur = Receiving::data;
+                                                        rDataDecoded.clear();
+                                                    } else {
+                                                        std::cerr << "Payload Error: " << real_payload << std::endl;
+                                                        receiveState = ReceiveState::preambleDetection;
+                                                    }
                                                 }
                                                 break;
                                             case Receiving::data:
-                                                CRCChecker.update(p[i++] = byte);
                                                 rDataEncoded.clear();
+                                                CRCChecker.update(byte);
+                                                rDataDecoded.push_back(byte);
+                                                if (rDataDecoded.size() == real_payload)
+                                                    cur = Receiving::crc;
+                                                break;
+                                            case Receiving::crc:
+                                                rDataEncoded.clear();
+                                                CRCChecker.update(byte);
+                                                if (CRCChecker.q == 0) {
+                                                    // CRC OK    
+                                                    auto q = boost::asio::buffer_cast<uint8_t *>(rDataBuffer.prepare(rDataDecoded.size()));
+                                                    for (auto i = 0; i < rDataDecoded.size(); i++)
+                                                        q[i] = rDataDecoded[i];
+                                                    rDataBuffer.commit(rDataDecoded.size());
+                                                } else {
+                                                    // CRC FAILED
+                                                    std::cerr << "CRC failed" << std::endl;
+                                                    std::cerr << rDataDecoded << std::endl;
+                                                }
+                                                cur = Receiving::len;
+                                                real_payload = 0;
+                                                rDataDecoded.clear();
+                                                receiveState = ReceiveState::preambleDetection;
                                                 break;
                                         }
+                                        
                                     }
                                 }
-                                if(i != real_payload + 1) {
-                                    std::cerr << "Payload size error: " << i << " " << real_payload << std::endl;
-                                } else if (CRCChecker.q == 0) {
-                                    rDataBuffer.commit(real_payload);
-                                } else {
-                                    std::cout << "CRC failed" << std::endl;
-                                }
-                                rSignalQueue.clear();
-                                receiveState = ReceiveState::preambleDetection;
+                                
+
                             }
                             break;
                     }
                 }
 
-                rSignalBuffer.consume(p.size() * sizeof(float));
+                rSignalBuffer.consume(rSignal.size() * sizeof(float));
 
             });
         }
