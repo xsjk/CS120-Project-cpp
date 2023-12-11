@@ -99,25 +99,39 @@ namespace OSI {
                                     continue;
                                 auto i = 0;
                                 CRCChecker.reset();
-                                auto real_payload = 256;
-                                for (auto t = 0; t < std::min<int>(packetBits, (real_payload + 2) * 10) * carrierSize ; ) {
+
+                                enum class Receiving : char { len, data, crc } cur = Receiving::len;
+                                payload_size_t real_payload = 0;
+                                for (auto t = 0; t < std::min<int>(packetBits, (sizeof(payload_size_t) + real_payload + 1) * 10) * carrierSize ; ) {
                                     sum = 0;
                                     for (auto tt = 0; tt < carrierSize; t++, tt++)
                                         sum += rSignalQueue[t] * carrier[tt];
                                     rDataEncoded.push_back(sum < 0);
                                     if (rDataEncoded.size() % 10 == 0) {
-                                        auto bitset = B8B10::decode(rDataEncoded.get<10>(0));
-                                        if (real_payload == 256)
-                                            real_payload = (uint8_t)bitset.to_ulong();
-                                        else
-                                            CRCChecker.update(p[i++] = (uint8_t)bitset.to_ulong());
-                                        rDataEncoded.clear();
+                                        auto lastIndex = rDataEncoded.size() / 10 - 1;
+                                        auto bitset = B8B10::decode(rDataEncoded.get<10>(lastIndex));
+                                        auto byte = (uint8_t)bitset.to_ulong();
+                                        switch (cur) {
+                                            case Receiving::len:
+                                                real_payload |= (payload_size_t)byte << 8 * lastIndex;
+                                                if (rDataEncoded.size() / 10 == sizeof(payload_size_t)) {
+                                                    rDataEncoded.clear();
+                                                    cur = Receiving::data;
+                                                }
+                                                break;
+                                            case Receiving::data:
+                                                CRCChecker.update(p[i++] = byte);
+                                                rDataEncoded.clear();
+                                                break;
+                                        }
                                     }
                                 }
                                 if(i != real_payload + 1) {
                                     std::cerr << "Payload size error: " << i << " " << real_payload << std::endl;
                                 } else if (CRCChecker.q == 0) {
                                     rDataBuffer.commit(real_payload);
+                                } else {
+                                    std::cout << "CRC failed" << std::endl;
                                 }
                                 rSignalQueue.clear();
                                 receiveState = ReceiveState::preambleDetection;
@@ -138,6 +152,12 @@ namespace OSI {
         const int packetBits;   // bits per packet (calculated by payload)
         const int carrierSize;  // size of carrier
         const int interSize;    // size of interval between packets
+
+        /*
+            | preamble | length | data | crc |
+        */
+       using payload_size_t = uint16_t;
+       static_assert(std::is_unsigned_v<payload_size_t>);
 
         std::vector<float> preamble, carrier;
 
@@ -190,20 +210,23 @@ namespace OSI {
           : amplitude(c.amplitude),
             threshold(c.threshold),
             payload(c.payload),
-            packetBits((c.payload + 2) * 10), // +2 for CRC and length
+            packetBits((c.payload + 1 + sizeof(payload_size_t)) * 10), // +1 for length
             carrierSize(c.carrierSize),
             interSize(c.interSize),
             preamble(from_file<float>(c.preambleFile)),
             carrier(c.carrierSize, 1.f) {
-                if (packetBits % 8 != 0)
+                if (packetBits % 8 != 0) {
+                    auto corrected_payload = packetBits / 40 * 4 - 1 - sizeof(payload_size_t);
                     throw std::runtime_error(std::format(
-                        "Invalid argument \"payload\", the \"packetBits\" should be the multiple of 8,"
-                        "got packetBits = {}", packetBits
+                        "Invalid argument \"payload\", the \"packetBits\" should be the multiple of 8, "
+                        "got packetBits = {}. The most likely available \"payload\" are {} and {}.",
+                        payload, corrected_payload, corrected_payload + 4
                     ));
-                if (payload >= 256) {
+                }
+                if (payload >= std::numeric_limits<payload_size_t>::max()) {
                     throw std::runtime_error(std::format(
-                        "Invalid argument \"payload\", \"payload\" should be smaller than 256,"
-                        "got payload = {}", payload
+                        "Invalid argument \"payload\", \"payload\" should be smaller than {}, got payload = {}", 
+                        std::numeric_limits<payload_size_t>::max(), payload
                     ));
                 }
             }
@@ -221,10 +244,14 @@ namespace OSI {
                 auto real_payload = payload;
                 for (auto i = 0; i < data.size() / 8; i++) {
                     // calculate real payload are the beginning of the package
-                    if (i % payload == 0)
-                        rawBits.push(B8B10::encode(std::bitset<8>(
-                            real_payload = std::min<int>(data.size() / 8 - i, payload)
-                        )));
+                    if (i % payload == 0) {
+                        real_payload = std::min<int>(data.size() / 8 - i, payload);
+                        for (int j = 0; j < sizeof(payload_size_t); j++)
+                            rawBits.push(B8B10::encode(std::bitset<8>(
+                                real_payload >> 8 * j
+                            )));
+                    }
+                        
                     // apply 8B10B to data bits
                     rawBits.push(B8B10::encode(data.get<8>(i)));
                     // add CRC at the end of the package
