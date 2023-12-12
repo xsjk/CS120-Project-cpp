@@ -1,42 +1,38 @@
-add_executable(project2_main src/main.cpp)
-target_link_libraries(project2_main
-    PUBLIC
-        PhysicalLayer
-)
+add_library(project2_lib INTERFACE)
 
-target_include_directories(project2_main
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-
-
-target_include_directories(PhysicalLayer
+target_include_directories(project2_lib
     INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(PhysicalLayer
+target_link_libraries(project2_lib
     INTERFACE
-        WASAPI
-        ASIO
-        Signal
         Boost
+        Utils
+        project1_lib
 )
+
+add_executable(project2_main src/main.cpp)
+target_link_libraries(project2_main
+    PUBLIC
+        project2_lib
+)
+
 
 add_executable(naive-one src/naive-one.cpp)
 target_link_libraries(naive-one
     PRIVATE
-        PhysicalLayer
+        project2_lib
 )
 
 add_executable(naive-sender src/naive-sender.cpp)
 target_link_libraries(naive-sender
     PRIVATE
-        PhysicalLayer
+        project2_lib
 )
 
 add_executable(naive-receiver src/naive-receiver.cpp)
 target_link_libraries(naive-receiver
     PRIVATE
-        PhysicalLayer
+        project2_lib
 )

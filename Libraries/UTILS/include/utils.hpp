@@ -13,6 +13,7 @@
 #include <optional>
 #include <string_view>
 #include <cxxabi.h>
+#include <generator>
 
 namespace utils {
 
@@ -43,6 +44,7 @@ namespace utils {
     class BitsContainer : public std::vector<bool> {
 
     public:
+        using value_type = bool;
         using std::vector<bool>::vector;
         using std::vector<bool>::operator=;
 
@@ -88,6 +90,8 @@ namespace utils {
 
         static auto from_bin(std::string fileName) {
             std::ifstream dataFile { fileName, std::ios::binary };
+            if (!dataFile.is_open())
+                throw std::runtime_error(std::format("Cannot open file: {}", fileName));
             BitsContainer container;
             char byte;
             while (dataFile.read(&byte, sizeof(byte)))
@@ -117,12 +121,19 @@ namespace utils {
                 dataFile << bit << std::endl;
         }
 
+        friend std::ostream &operator<<(std::ostream &os, const BitsContainer &container) {
+            for (auto bit : container)
+                os << bit;
+            return os;
+        }
+
     };
 
 
     class ByteContainer : public std::vector<uint8_t> {
 
     public:
+        using value_type = uint8_t;
         using std::vector<uint8_t>::vector;
         using std::vector<uint8_t>::operator=;
 
@@ -140,6 +151,17 @@ namespace utils {
         void add_header(const auto &t) {
             auto sp = std::span((const uint8_t *)&t, sizeof(t));
             insert(begin(), sp.begin(), sp.end());
+        }
+
+        friend std::ostream &operator<<(std::ostream &os, const ByteContainer &container) {
+            for (auto i = 0; i < container.size(); i++) {
+                os << std::format("{:02x} ", container[i]);
+                if (i % 8 == 7) 
+                    os << ' '; 
+                if (i % 16 == 15) 
+                    os << std::endl; 
+            }
+            return os;
         }
 
     };
@@ -270,17 +292,17 @@ namespace utils {
     template <typename T>
     constexpr auto static_typename() {
         using namespace std::string_view_literals;
-#if defined(__clang__) || defined(__GNUC__)
-        constexpr auto prefix = "T = "sv;
-        constexpr auto suffix = "]"sv;
-        constexpr std::string_view function = __PRETTY_FUNCTION__;
-#elif defined(_MSC_VER)
-        constexpr auto prefix = "get_type_name<"sv;
-        constexpr auto suffix = ">(void)"sv;
-        constexpr std::string_view function = __FUNCSIG__;
-#else
-#error Unsupported compiler
-#endif
+        #if defined(__clang__) || defined(__GNUC__)
+            constexpr auto prefix = "T = "sv;
+            constexpr auto suffix = "]"sv;
+            constexpr std::string_view function = __PRETTY_FUNCTION__;
+        #elif defined(_MSC_VER)
+            constexpr auto prefix = "get_type_name<"sv;
+            constexpr auto suffix = ">(void)"sv;
+            constexpr std::string_view function = __FUNCSIG__;
+        #else
+            #error Unsupported compiler
+        #endif
         constexpr auto start = function.find(prefix) + prefix.size();
         return function.substr(start, function.rfind(suffix) - start);
     }
@@ -290,4 +312,20 @@ namespace utils {
     }
 
 
-}
+    template<std::ranges::input_range R>
+    std::generator<typename R::value_type> concat(R &&r) {
+        for (auto &&e : r)
+            co_yield e;
+    }
+
+    template<std::ranges::input_range R, std::ranges::input_range... Rs>
+    std::generator<typename R::value_type> concat(R &&r, Rs &&...rs) {
+        for (auto &&e : r)
+            co_yield e;
+        for (auto &&e : concat(std::forward<Rs>(rs)...))
+            co_yield e;
+    }
+
+
+} // namespace utils
+
