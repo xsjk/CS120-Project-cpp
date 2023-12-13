@@ -8,9 +8,9 @@ target_include_directories(project3_lib
 target_link_libraries(project3_lib
     INTERFACE
         Signal
-        Asyncio
         argparse
         npcap
+        wintun
         project2_lib
 )
 
@@ -26,8 +26,20 @@ target_link_libraries(asyncio_test
         project3_lib
 )
 
-add_executable(ping src/ping.cpp)
-target_link_libraries(ping
+add_executable(project3_ping src/ping.cpp)
+target_link_libraries(project3_ping
+    PRIVATE
+        project3_lib
+)
+
+add_executable(project3_node1 src/node1.cpp)
+target_link_libraries(project3_node1
+    PRIVATE
+        project3_lib
+)
+
+add_executable(project3_node2 src/node2.cpp)
+target_link_libraries(project3_node2
     PRIVATE
         project3_lib
 )

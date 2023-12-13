@@ -32,6 +32,9 @@ struct TimeoutError : std::runtime_error {
         std::format("Timeout after {}", time)) { }
 };
 
+struct CancelledError : std::runtime_error {
+    CancelledError() : std::runtime_error("Cancelled") { }
+};
 
 class Context : public boost::asio::io_context {
     std::jthread thread;
