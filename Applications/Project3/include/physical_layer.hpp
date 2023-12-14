@@ -11,7 +11,6 @@
 #include <vector>
 #include <mutex>
 #include <algorithm>
-#include <queue>
 #include <limits>
 #include <valarray>
 #include <thread>
@@ -32,6 +31,8 @@
 #include "device.hpp"
 
 using namespace utils;
+
+#define DEBUG
 
 namespace OSI {
 
@@ -96,13 +97,14 @@ namespace OSI {
                         case ReceiveState::dataExtraction:
                             {
                                 static enum class Receiving : char { len, data, crc } cur = Receiving::len;
-                                static payload_size_t real_payload = 0;
-                                static BitsContainer rDataEncoded; // bits encoded with 8B10B and container length, data and crc.
-                                static ByteContainer rDataDecoded; // bytes only contains decoded data
+                                static Header header;               // physical layer header
+                                static BitsContainer rDataEncoded;  // bits encoded with 8B10B and container length, data and crc.
+                                static ByteContainer rDataDecoded;  // bytes only contains decoded data
 
                                 // get rDataEncoded from rSignal                                
                                 static auto dt = 0;
                                 static float sum = 0;
+                                static bool is_last_packet = false;
                                 sum += rSignal[t] * carrier[dt];
                                 dt++;
                                 if (dt % carrierSize == 0) {
@@ -114,7 +116,9 @@ namespace OSI {
                                         auto lastrDataIndex = rDataEncoded.size() / 10 - 1;
                                         uint8_t byte;
                                         try {
-                                            byte = (uint8_t)B8B10::decode(rDataEncoded.get<10>(lastrDataIndex)).to_ulong();
+                                            auto encoded = rDataEncoded.get<10>(lastrDataIndex);
+                                            auto decoded = B8B10::decode(encoded);
+                                            byte = (uint8_t)decoded.to_ulong();
                                         } catch (const std::exception& e) {
                                             std::cerr << "8B10B decode error" << std::endl;
                                             receiveState = ReceiveState::preambleDetection;
@@ -122,13 +126,14 @@ namespace OSI {
                                         }
                                         switch (cur) {
                                             case Receiving::len:
-                                                real_payload |= (payload_size_t)byte << 8 * lastrDataIndex;
-                                                if (rDataEncoded.size() / 10 == sizeof(payload_size_t)) {
-                                                    if (real_payload > 0) {
+                                                ((char*)&header)[lastrDataIndex] = byte;
+                                                if (rDataEncoded.size() / 10 == sizeof(Header)) {
+                                                    if (header.size > 0) {
+                                                        is_last_packet = header.done;
                                                         cur = Receiving::data;
                                                         rDataDecoded.clear();
                                                     } else {
-                                                        std::cerr << "Payload Error: " << real_payload << std::endl;
+                                                        std::cerr << "Payload Error: " << header.size << std::endl;
                                                         receiveState = ReceiveState::preambleDetection;
                                                     }
                                                 }
@@ -137,7 +142,7 @@ namespace OSI {
                                                 rDataEncoded.clear();
                                                 CRCChecker.update(byte);
                                                 rDataDecoded.push_back(byte);
-                                                if (rDataDecoded.size() == real_payload)
+                                                if (rDataDecoded.size() == header.size)
                                                     cur = Receiving::crc;
                                                 break;
                                             case Receiving::crc:
@@ -145,16 +150,20 @@ namespace OSI {
                                                 CRCChecker.update(byte);
                                                 if (CRCChecker.q == 0) {
                                                     // CRC OK    
-                                                    auto q = boost::asio::buffer_cast<uint8_t *>(rDataBuffer.prepare(rDataDecoded.size()));
+                                                    static ByteContainer rDataBuffer;
                                                     for (auto i = 0; i < rDataDecoded.size(); i++)
-                                                        q[i] = rDataDecoded[i];
-                                                    rDataBuffer.commit(rDataDecoded.size());
+                                                        rDataBuffer.push(rDataDecoded[i]);
+                                                    if (is_last_packet)
+                                                        rPacketQueue.push(std::move(rDataBuffer));
                                                 } else {
                                                     // CRC FAILED
                                                     std::cerr << "CRC failed" << std::endl;
+                                                    #ifdef DEBUG
+                                                        std::cout << rDataDecoded << std::endl;
+                                                    #endif
                                                 }
                                                 cur = Receiving::len;
-                                                real_payload = 0;
+                                                header.size = 0;
                                                 rDataDecoded.clear();
                                                 receiveState = ReceiveState::preambleDetection;
                                                 break;
@@ -183,18 +192,25 @@ namespace OSI {
         const int interSize;    // size of interval between packets
 
         /*
-            | preamble | length | data | crc |
+            | preamble | size | done | data | crc |
         */
-       using payload_size_t = uint16_t;
-       static_assert(std::is_unsigned_v<payload_size_t>);
+        struct Header {
+            unsigned size: 31;
+            unsigned done: 1;
+        };
+        static_assert(sizeof(Header) == 4);
 
         std::vector<float> preamble, carrier;
 
-        ByteStreamBuf sSignalBuffer, rSignalBuffer, sDataBuffer, rDataBuffer;
+        ByteStreamBuf sSignalBuffer, rSignalBuffer, sDataBuffer;
+        ThreadSafeQueue<ByteContainer> rPacketQueue;
+
         Context senderContext, receiverContext;
 
 
         def send_raw(BitsContainer &&rawBits) {
+
+            assert(rawBits.size() % 10 == 0);
 
             static std::ofstream sSignalFile { "sSignal.txt" };
 
@@ -227,11 +243,13 @@ namespace OSI {
         /**
          * @brief async wait for rData to arrive
          * 
+         * @note you should call this funciton in receiverContext 
+         *       to ensure thread safety
          */
-        async def wait_data() -> awaitable<std::span<const uint8_t>> {
-            while (rDataBuffer.size() == 0)
-                co_await asyncio.sleep(0s);     // yield the coroutine
-            co_return std::span(boost::asio::buffer_cast<const uint8_t *>(rDataBuffer.data()), rDataBuffer.size());
+        async def wait_data() -> awaitable<ByteContainer> {
+            while (rPacketQueue.empty())
+                co_await asyncio.sleep(0s);     // yield the receiverContext
+            co_return rPacketQueue.pop();
         }
 
     public:
@@ -249,23 +267,24 @@ namespace OSI {
           : amplitude(c.amplitude),
             threshold(c.threshold),
             payload(c.payload),
-            packetBits((c.payload + 1 + sizeof(payload_size_t)) * 10), // +1 for length
+            packetBits((c.payload + 1 + sizeof(Header)) * 10), // +1 for length
             carrierSize(c.carrierSize),
             interSize(c.interSize),
             preamble(from_file<float>(c.preambleFile)),
             carrier(c.carrierSize, 1.f) {
                 if (packetBits % 8 != 0) {
-                    auto corrected_payload = packetBits / 40 * 4 - 1 - sizeof(payload_size_t);
+                    auto corrected_payload = packetBits / 40 * 4 - 1 - sizeof(Header);
                     throw std::runtime_error(std::format(
                         "Invalid argument \"payload\", the \"packetBits\" should be the multiple of 8, "
                         "got packetBits = {}. The most likely available \"payload\" are {} and {}.",
                         payload, corrected_payload, corrected_payload + 4
                     ));
                 }
-                if (payload >= std::numeric_limits<payload_size_t>::max()) {
+                constexpr auto maxpayload = 1ull << (8 * sizeof(Header) - 1);
+                if (payload >= maxpayload) {
                     throw std::runtime_error(std::format(
                         "Invalid argument \"payload\", \"payload\" should be smaller than {}, got payload = {}", 
-                        std::numeric_limits<payload_size_t>::max(), payload
+                        maxpayload, payload
                     ));
                 }
             }
@@ -280,23 +299,27 @@ namespace OSI {
 
                 // the result after adding CRC and applying 8B10B
                 BitsContainer rawBits;
-                auto real_payload = payload;
+                Header header;
+
                 for (auto i = 0; i < data.size() / 8; i++) {
-                    // calculate real payload are the beginning of the package
+                    // calculate real payload at the beginning of the package
                     if (i % payload == 0) {
-                        real_payload = std::min<int>(data.size() / 8 - i, payload);
-                        for (int j = 0; j < sizeof(payload_size_t); j++)
-                            rawBits.push(B8B10::encode(std::bitset<8>(
-                                real_payload >> 8 * j
-                            )));
+                        header.size = std::min<int>(data.size() / 8 - i, payload);
+                        header.done = (data.size() / 8 - 1) / payload == i / payload;
+                        for (int j = 0; j < sizeof(Header); j++) {
+                            auto byte = ((char*)&header)[j];
+                            auto encoded = B8B10::encode(byte);
+                            rawBits.push(encoded);
+                        }
                     }
                         
                     // apply 8B10B to data bits
                     rawBits.push(B8B10::encode(data.get<8>(i)));
+
                     // add CRC at the end of the package
-                    if ((i + 1 + payload - real_payload) % payload == 0)
+                    if ((i + 1 + payload - header.size) % payload == 0)
                         rawBits.push(B8B10::encode(std::bitset<8>(CRC8<7>::get(data.as_span<uint8_t>().subspan(
-                            (i / payload) * payload, real_payload
+                            (i / payload) * payload, header.size
                         )))));
                 }
 
@@ -315,15 +338,18 @@ namespace OSI {
         async def async_send(ByteStreamBuf &sendbuf) -> awaitable<void> {
             co_await boost::asio::co_spawn(senderContext, [&](ByteStreamBuf &sendbuf) -> awaitable<void> {
                 auto q = std::span(boost::asio::buffer_cast<const uint8_t *>(sendbuf.data()), sendbuf.size());
-                auto real_payload = payload;
                 BitsContainer rawBits;
+                Header header;
                 for (auto i = 0; i < q.size() / 8; i++) {
-                    if (i % payload == 0)
-                        rawBits.push(B8B10::encode(std::bitset<8>(
-                            real_payload = std::min<int>(q.size() / 8 - i, payload)
-                        )));
+                    if (i % payload == 0) {
+                        header.size = std::min<int>(q.size() / 8 - i, payload);
+                        header.done = (q.size() / 8 - 1) / payload == i / payload;
+                        for (int j = 0; j < sizeof(Header); j++)
+                            rawBits.push(B8B10::encode(std::bitset<8>(((char*)&header)[j])));
+                        header.done = false;
+                    }
                     rawBits.push(B8B10::encode(std::bitset<8>(q[i])));
-                    if ((i + 1 + payload - real_payload) % payload == 0)
+                    if ((i + 1 + payload - header.size) % payload == 0)
                         rawBits.push(B8B10::encode(std::bitset<8>(CRC8<7>::get(
                             q.subspan((i / payload) * payload, payload)
                         ))));
@@ -342,15 +368,14 @@ namespace OSI {
          * @param readbuf
          */
         async def async_read(ByteStreamBuf &readbuf) -> awaitable<void> {
-            co_await boost::asio::co_spawn(receiverContext, [&](ByteStreamBuf &readbuf) -> awaitable<void> {
+            co_await boost::asio::co_spawn(receiverContext, [&]() -> awaitable<void> {
                 auto q = co_await wait_data();
                 auto p = std::span(boost::asio::buffer_cast<uint8_t *>(readbuf.prepare(q.size())), q.size());
                 for (auto i = 0; i < p.size(); i++)
                     p[i] = q[i];
-                rDataBuffer.consume(p.size());
                 readbuf.commit(p.size());
                 co_return;
-            }(readbuf), boost::asio::use_awaitable);
+            }(), boost::asio::use_awaitable);
         }
 
         /**
@@ -358,15 +383,8 @@ namespace OSI {
          *
          * @return bitsContainer
          */
-        async def async_read() -> awaitable<BitsContainer> {
-            co_return co_await boost::asio::co_spawn(receiverContext, [&]() -> awaitable<BitsContainer> {
-                auto p = co_await wait_data();
-                BitsContainer rData;
-                for (auto i = 0; i < p.size(); i++)
-                    rData.push(p[i]);
-                rDataBuffer.consume(p.size());
-                co_return rData;
-            }(), boost::asio::use_awaitable);
+        async def async_read() {
+            return boost::asio::co_spawn(receiverContext, wait_data(), boost::asio::use_awaitable);
         }
 
 

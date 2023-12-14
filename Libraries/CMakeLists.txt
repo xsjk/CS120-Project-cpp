@@ -11,4 +11,5 @@ add_subdirectory(ASYNCIO)
 add_subdirectory(NPCAP-SDK)
 add_subdirectory(ARGPARSE)
 add_subdirectory(WINTUN)
+add_subdirectory(TAP)
 

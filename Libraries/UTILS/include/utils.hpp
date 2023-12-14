@@ -14,6 +14,10 @@
 #include <string_view>
 #include <cxxabi.h>
 #include <generator>
+#include <mutex>
+#include <queue>
+#include <exception>
+#include <condition_variable>
 
 namespace utils {
 
@@ -38,7 +42,7 @@ namespace utils {
     inline void to_file(std::string fileName, auto &&container) {
         std::ofstream dataFile { fileName };
         for (auto &&t : std::forward<decltype(container)>(container))
-            dataFile << std::forward<decltype(t)>(t) << std::endl;
+            dataFile << std::forward<decltype(t)>(t) << '\n';
     }
 
     class BitsContainer : public std::vector<bool> {
@@ -99,13 +103,6 @@ namespace utils {
             return container;
         }
 
-        void to_bin(std::string fileName) {
-            std::ofstream dataFile { fileName, std::ios::binary };
-            char byte;
-            for (auto const &byte : as_span<char>())
-                dataFile.write(&byte, sizeof(byte));
-        }
-
         static auto from_file(std::string fileName) {
             std::ifstream dataFile { fileName };
             BitsContainer container;
@@ -118,7 +115,14 @@ namespace utils {
         void to_file(std::string fileName) {
             std::ofstream dataFile { fileName };
             for (const auto &bit : *this)
-                dataFile << bit << std::endl;
+                dataFile << bit << '\n';
+        }
+
+        void to_bin(std::string fileName) {
+            std::ofstream dataFile { fileName, std::ios::binary };
+            char byte;
+            for (auto const &byte : as_span<char>())
+                dataFile.write(&byte, sizeof(byte));
         }
 
         friend std::ostream &operator<<(std::ostream &os, const BitsContainer &container) {
@@ -153,13 +157,40 @@ namespace utils {
             insert(begin(), sp.begin(), sp.end());
         }
 
+        void to_file(std::string fileName) {
+            std::ofstream dataFile { fileName };
+            for (const auto &byte : *this) {
+                auto bs = std::bitset<8>(byte);
+                for (auto i = 0; i < 8; i++) 
+                    dataFile << bs[i] << '\n';
+            }
+        }
+
+        static auto from_bin(std::string fileName) {
+            std::ifstream dataFile { fileName, std::ios::binary };
+            if (!dataFile.is_open())
+                throw std::runtime_error(std::format("Cannot open file: {}", fileName));
+            ByteContainer container;
+            char byte;
+            while (dataFile.read(&byte, sizeof(byte)))
+                container.push_back(byte);
+            return container;
+        }
+
+        void to_bin(std::string fileName) {
+            std::ofstream dataFile { fileName, std::ios::binary };
+            char byte;
+            for (auto const &byte : as_span<char>())
+                dataFile.write(&byte, sizeof(byte));
+        }
+
         friend std::ostream &operator<<(std::ostream &os, const ByteContainer &container) {
             for (auto i = 0; i < container.size(); i++) {
                 os << std::format("{:02x} ", container[i]);
                 if (i % 8 == 7) 
                     os << ' '; 
                 if (i % 16 == 15) 
-                    os << std::endl; 
+                    os << '\n'; 
             }
             return os;
         }
@@ -186,6 +217,44 @@ namespace utils {
             return bs;
         }
     };
+
+
+    template <typename T>
+    class ThreadSafeQueue {
+        
+        mutable std::mutex mtx;
+        std::queue<T> q;
+        std::condition_variable cond_var;
+
+    public:
+        ThreadSafeQueue() {}
+
+        void push(T&& value) {
+            std::lock_guard<std::mutex> lock(mtx);
+            q.push(std::move(value));
+            cond_var.notify_one();
+        }
+
+        T pop() {
+            std::unique_lock<std::mutex> lock(mtx);
+            cond_var.wait(lock, [this]{ return !q.empty(); });
+            T value = std::move(q.front());
+            q.pop();
+            return std::move(value);
+        }
+
+        bool empty() const {
+            std::lock_guard<std::mutex> lock(mtx);
+            return q.empty();
+        }
+
+        size_t size() const {
+            std::lock_guard<std::mutex> lock(mtx);
+            return q.size();
+        }
+
+    };
+
 
 
     float mean(auto v) {
