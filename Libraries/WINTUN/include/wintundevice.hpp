@@ -202,7 +202,7 @@ public:
 
     async def async_read(boost::asio::streambuf &buf);
 
-    async def async_write(boost::asio::streambuf &buf);
+    async def async_send(boost::asio::streambuf &buf);
 };
 
 
@@ -447,7 +447,7 @@ async def Session::async_read(boost::asio::streambuf &buf) {
 
 
 
-async def Session::async_write(boost::asio::streambuf &buf) {
+async def Session::async_send(boost::asio::streambuf &buf) {
     return boost::asio::co_spawn(senderContext, [&] () -> awaitable<void> {
         auto p = buf.data();
         BYTE *Packet = API::WintunAllocateSendPacket(handle, p.size());

@@ -125,6 +125,7 @@ namespace OSI {
                                                 std::cerr << "8B10B decode failed" << std::endl;
                                             #endif
                                             cur = Receiving::len;
+                                            rDataEncoded.clear();
                                             receiveState = ReceiveState::preambleDetection;
                                             continue;
                                         }
@@ -135,6 +136,7 @@ namespace OSI {
                                                     if (header.size > 0) {
                                                         is_last_packet = header.done;
                                                         cur = Receiving::data;
+                                                        CRCChecker.reset();
                                                         rDataDecoded.clear();
                                                     } else {
                                                         std::cerr << "Payload Error: " << header.size << std::endl;
