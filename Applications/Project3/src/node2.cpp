@@ -4,8 +4,8 @@
 int main(int argc, char **argv) {
 
     auto session = std::make_shared<WinTUN::Device>(
-        "node2", GUID { 0xdeadbabe, 0xcafe, 0xbeef, { 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe } }
-    )->open("10.6.7.8");
+        "node1", GUID { 0xdeadbabe, 0xcafe, 0xbeef, { 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef } }
+    )->open("172.18.1.1");
 
     asyncio.run([&]() -> awaitable<void> {
         while (true) {

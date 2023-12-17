@@ -1,19 +1,47 @@
-#include "wintundevice.hpp"
-#include "argparse/argparse.hpp"
+#pragma once
 
-#include "ping.hpp"
+#include <iostream>
+#include <format>
+#include <cstring>
+#include <cstdint>
+#include <valarray>
+#include <array>
+#include "sec_api/tchar_s.h"
+#include "pcap/pcap.h"
+#include <cstdint>
+#include <concepts>
+#include <thread>
+#include <iomanip>
+#include <asyncio.hpp>
+#include <argparse/argparse.hpp>
+#include <utils.hpp>
+#include <boost/asio.hpp>
+#include <regex>
+#include <networkheaders.hpp>
 
 
-inline ByteContainer create_packet(
+using namespace utils;
+
+
+inline ByteContainer create_ping_packet(
+    const MAC_addr_t &src_mac,
+    const MAC_addr_t &dst_mac,
     const IPV4_addr &src_ip,
     const IPV4_addr &dst_ip,
     const std::uint16_t &identifier,
-    const std::uint16_t &seq_num,
-    ByteContainer payload
+    const std::uint16_t &seq_num
 ) {
+
+    ByteContainer payload;
 
     using boost::asio::detail::socket_ops::host_to_network_short;
     using boost::asio::detail::socket_ops::host_to_network_long;
+
+    MAC_Header mac_header = {
+        .dst = dst_mac,
+        .src = src_mac,
+        .type = 0x0008
+    };
 
     IPV4_Header ipv4_header = {
         .ihl = 5,
@@ -34,6 +62,7 @@ inline ByteContainer create_packet(
 
     ipv4_header.checksum = checksum(std::span((uint8_t *)&ipv4_header, sizeof(IPV4_Header)));
 
+
     ICMP_Header icmp_header = {
         .type = 0x00,
         .code = 0x00,
@@ -42,50 +71,30 @@ inline ByteContainer create_packet(
         .seq_num = seq_num
     };
 
+
     icmp_header.checksum = checksum(std::span((uint8_t *)&icmp_header, sizeof(ICMP_Header)), checksum(payload));
     icmp_header.type = unsigned(ICMP_Header::Type::EchoRequest);
 
     ByteContainer packet;
+    packet.push(mac_header);
     packet.push(ipv4_header);
     packet.push(icmp_header);
     packet.insert(packet.end(), payload.begin(), payload.end());
+
 
     return packet;
 
 }
 
-int main(int argc, char **argv) {
-
-    auto session = std::make_shared<WinTUN::Device>(
-        "node1", GUID { 0xdeadbabe, 0xcafe, 0xbeef, { 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef } }
-    )->open("172.18.1.3");
-
-    asyncio.run([&]() -> awaitable<void> {
-
-        boost::asio::streambuf buf;
-
-        while (true) {
-
-            ByteContainer payload;
-                    
-            auto packet = create_packet(
-                IPV4_addr("172.18.1.3"),
-                IPV4_addr("172.18.1.1"),
-                0x0001,
-                0x0002,
-                payload
-            );
-
-            auto p = std::span(boost::asio::buffer_cast<uint8_t *>(buf.prepare(packet.size())), packet.size());
-            for (auto i = 0; i < p.size(); i++)
-                p[i] = packet[i];
-            buf.commit(p.size());
-
-            co_await session->async_send(buf);
-            co_await asyncio.sleep(1s);
-        }
-    }());
-
-    return 0;
-
+struct PingPacketConfig {
+    MAC_addr_t src_mac;
+    MAC_addr_t dst_mac;
+    IPV4_addr src_ip;
+    IPV4_addr dst_ip;
+    std::uint16_t identifier;
+    std::uint16_t seq_num;
+};
+inline def create_ping_packet(PingPacketConfig &&config) {
+    return create_ping_packet(config.src_mac, config.dst_mac, config.src_ip, config.dst_ip, config.identifier, config.seq_num);
 }
+

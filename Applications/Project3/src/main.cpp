@@ -51,7 +51,11 @@ int main(int argc, char **argv) {
 
             // --------------------- send bits ---------------------
             std::cout << std::endl;
-            co_await physicalLayer->async_send(BitsContainer::from_bin(inputFile));
+            OSI::ByteStreamBuf buf;
+            auto bits = BitsContainer::from_bin(inputFile);
+            for (auto i = 0; i < bits.size() / 8; i++)
+                buf.sputc(bits.get<8>(i).to_ulong());
+            co_await physicalLayer->async_send(buf);
 
             // ------------------ start the device and send ------------------
             auto device = std::make_shared<Device>();
@@ -65,16 +69,15 @@ int main(int argc, char **argv) {
             device->start(physicalLayer);
 
             std::cout << "Sending ..." << std::endl;
-            co_await asyncio.sleep(std::chrono::milliseconds((int)(1000 * configObj.at("time").as_double())));
 
+            auto rData = co_await physicalLayer->async_read();
             device->stop();
 
             // --------------------- save data to file ---------------------
-
             std::cout << "Saving ..." << std::endl;
-            auto rData = co_await physicalLayer->async_read();
             rData.to_bin(outputFile);
             rData.to_file("rData.txt");
+
             co_return 0;
 
         } catch (const std::exception &err) {

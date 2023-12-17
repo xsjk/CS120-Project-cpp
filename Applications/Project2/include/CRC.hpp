@@ -53,6 +53,9 @@ struct CRC8 {
     inline std::uint8_t update(std::uint8_t data) {
         return q = ((q << 8) | data) ^ prod[q];
     }
+    inline std::uint8_t get() {
+        return (q << 8) ^ prod[q];
+    }
 
 };
 

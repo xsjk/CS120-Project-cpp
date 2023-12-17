@@ -43,3 +43,15 @@ target_link_libraries(project3_node2
     PRIVATE
         project3_lib
 )
+
+add_executable(project3_nodes src/nodes.cpp)
+target_link_libraries(project3_nodes
+    PRIVATE
+        project3_lib
+)
+
+add_executable(project3_aethernet src/aethernet.cpp)
+target_link_libraries(project3_aethernet
+    PRIVATE
+        project3_lib
+)

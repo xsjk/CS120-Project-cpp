@@ -120,7 +120,11 @@ namespace OSI {
                                             auto decoded = B8B10::decode(encoded);
                                             byte = (uint8_t)decoded.to_ulong();
                                         } catch (const std::exception& e) {
-                                            std::cerr << "8B10B decode error" << std::endl;
+                                            // misdetection of preamble
+                                            #ifdef DEBUG 
+                                                std::cerr << "8B10B decode failed" << std::endl;
+                                            #endif
+                                            cur = Receiving::len;
                                             receiveState = ReceiveState::preambleDetection;
                                             continue;
                                         }
@@ -157,8 +161,8 @@ namespace OSI {
                                                         rPacketQueue.push(std::move(rDataBuffer));
                                                 } else {
                                                     // CRC FAILED
-                                                    std::cerr << "CRC failed" << std::endl;
                                                     #ifdef DEBUG
+                                                        std::cerr << "CRC failed" << std::endl;
                                                         std::cout << rDataDecoded << std::endl;
                                                     #endif
                                                 }
@@ -213,8 +217,7 @@ namespace OSI {
             assert(rawBits.size() % 10 == 0);
 
             static std::ofstream sSignalFile { "sSignal.txt" };
-
-            std::cout << "Generating sSignal ..." << std::endl;
+            rawBits.to_file("sData.txt");
 
             auto nBits = rawBits.size();
             auto nPacket = nBits / packetBits;
@@ -300,6 +303,8 @@ namespace OSI {
                 // the result after adding CRC and applying 8B10B
                 BitsContainer rawBits;
                 Header header;
+                CRC8<7> CRCChecker;
+                CRCChecker.reset();
 
                 for (auto i = 0; i < data.size() / 8; i++) {
                     // calculate real payload at the beginning of the package
@@ -314,13 +319,15 @@ namespace OSI {
                     }
                         
                     // apply 8B10B to data bits
-                    rawBits.push(B8B10::encode(data.get<8>(i)));
+                    auto byte = data.get<8>(i);
+                    CRCChecker.update(byte.to_ulong());
+                    rawBits.push(B8B10::encode(byte));
 
                     // add CRC at the end of the package
-                    if ((i + 1 + payload - header.size) % payload == 0)
-                        rawBits.push(B8B10::encode(std::bitset<8>(CRC8<7>::get(data.as_span<uint8_t>().subspan(
-                            (i / payload) * payload, header.size
-                        )))));
+                    if ((i + 1 + payload - header.size) % payload == 0) {
+                        rawBits.push(B8B10::encode(std::bitset<8>(CRCChecker.get())));
+                        CRCChecker.reset();
+                    }
                 }
 
                 send_raw(std::move(rawBits));
@@ -340,19 +347,27 @@ namespace OSI {
                 auto q = std::span(boost::asio::buffer_cast<const uint8_t *>(sendbuf.data()), sendbuf.size());
                 BitsContainer rawBits;
                 Header header;
-                for (auto i = 0; i < q.size() / 8; i++) {
+                CRC8<7> CRCChecker;
+                CRCChecker.reset();
+                
+                for (auto i = 0; i < q.size(); i++) {
                     if (i % payload == 0) {
-                        header.size = std::min<int>(q.size() / 8 - i, payload);
-                        header.done = (q.size() / 8 - 1) / payload == i / payload;
-                        for (int j = 0; j < sizeof(Header); j++)
-                            rawBits.push(B8B10::encode(std::bitset<8>(((char*)&header)[j])));
-                        header.done = false;
+                        header.size = std::min<int>(q.size() - i, payload);
+                        header.done = (q.size() - 1) / payload == i / payload;
+                        for (int j = 0; j < sizeof(Header); j++) {
+                            auto byte = ((char*)&header)[j];
+                            auto encoded = B8B10::encode(byte);
+                            rawBits.push(encoded);
+                        }
                     }
+                    
+                    CRCChecker.update(q[i]);
                     rawBits.push(B8B10::encode(std::bitset<8>(q[i])));
-                    if ((i + 1 + payload - header.size) % payload == 0)
-                        rawBits.push(B8B10::encode(std::bitset<8>(CRC8<7>::get(
-                            q.subspan((i / payload) * payload, payload)
-                        ))));
+
+                    if ((i + 1 + payload - header.size) % payload == 0) {
+                        rawBits.push(B8B10::encode(std::bitset<8>(CRCChecker.get())));
+                        CRCChecker.reset();
+                    }
                 }
                 sendbuf.consume(q.size());
                 send_raw(std::move(rawBits));
@@ -367,14 +382,14 @@ namespace OSI {
          *
          * @param readbuf
          */
-        async def async_read(ByteStreamBuf &readbuf) -> awaitable<void> {
-            co_await boost::asio::co_spawn(receiverContext, [&]() -> awaitable<void> {
+        async def async_read(ByteStreamBuf &readbuf) -> awaitable<int> {
+            co_await boost::asio::co_spawn(receiverContext, [&]() -> awaitable<int> {
                 auto q = co_await wait_data();
                 auto p = std::span(boost::asio::buffer_cast<uint8_t *>(readbuf.prepare(q.size())), q.size());
                 for (auto i = 0; i < p.size(); i++)
                     p[i] = q[i];
                 readbuf.commit(p.size());
-                co_return;
+                co_return p.size();
             }(), boost::asio::use_awaitable);
         }
 
