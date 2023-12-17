@@ -37,18 +37,46 @@ using namespace utils;
 namespace OSI {
 
 
-    using ByteStreamBuf = boost::asio::streambuf;
+    using ByteStreamBuffer = boost::asio::streambuf;
 
 
     class AsyncPhysicalLayer : public IOHandler<float> {
+
+        bool busy = false; // whether the channel is busy
+        bool sending = false;
 
         void outputCallback(DataView<float> &view) noexcept override {
 
             assert(view.getNumChannels() == 2);
             auto p = std::span(boost::asio::buffer_cast<const float *>(sSignalBuffer.data()), sSignalBuffer.size() / sizeof(float));
-            for (auto i = 0; i < view.getNumSamples(); i++)
-                view(0, i) = view(1, i) = i < p.size() ? p[i] : 0;
-            sSignalBuffer.consume(view.getNumSamples() * sizeof(float));
+            auto front_packet_size = sSignalBuffer.front_packet_size() / sizeof(float);
+            auto n_samples = view.getNumSamples();
+            auto consume_size = 0;
+
+            if (busy) {
+                if (sending) {
+                    if (front_packet_size < n_samples) {
+                        consume_size = front_packet_size;
+                        sending = false;
+                    } else {
+                        consume_size = n_samples;
+                    }
+                } else {
+                    consume_size = 0;
+                }
+            } else {
+                if (p.size() < n_samples) {
+                    consume_size = p.size();
+                    sending = false;
+                } else {
+                    consume_size = n_samples;
+                    sending = true;
+                }
+            }
+
+            for (auto i = 0; i < n_samples; i++)
+                view(0, i) = view(1, i) = i < consume_size ? p[i] : 0;
+            sSignalBuffer.consume(consume_size * sizeof(float));
 
         }
 
@@ -56,9 +84,14 @@ namespace OSI {
 
             assert(view.getNumChannels() == 1);
             auto p = std::span(boost::asio::buffer_cast<float *>(rSignalBuffer.prepare(view.getNumSamples() * sizeof(float))), view.getNumSamples());
-            for (auto i = 0; i < p.size(); i++)
+            float sum = 0;
+            for (auto i = 0; i < p.size(); i++) {
                 p[i] = view(0, i);
+                sum += p[i] * p[i];
+            }
             rSignalBuffer.commit(view.getNumSamples() * sizeof(float));
+
+            busy = sum > busy_threshold;
 
             // process received signal in the receiver context (in another thread)
             // so that the inputCallback will not be blocked
@@ -174,11 +207,8 @@ namespace OSI {
                                                 receiveState = ReceiveState::preambleDetection;
                                                 break;
                                         }
-                                        
                                     }
                                 }
-                                
-
                             }
                             break;
                     }
@@ -192,6 +222,7 @@ namespace OSI {
 
         const float amplitude;  // amplitude of the sending signal
         const float threshold;  // threshold for preamble detection
+        const float busy_threshold;  // threshold for busy detection
         const int payload;      // bytes per CRC check
         const int packetBits;   // bits per packet (calculated by payload)
         const int carrierSize;  // size of carrier
@@ -208,7 +239,8 @@ namespace OSI {
 
         std::vector<float> preamble, carrier;
 
-        ByteStreamBuf sSignalBuffer, rSignalBuffer, sDataBuffer;
+        PacketStreamBuffer sSignalBuffer;
+        ByteStreamBuffer rSignalBuffer, sDataBuffer;
         ThreadSafeQueue<ByteContainer> rPacketQueue;
 
         Context senderContext, receiverContext;
@@ -271,6 +303,7 @@ namespace OSI {
         AsyncPhysicalLayer(Config c)
           : amplitude(c.amplitude),
             threshold(c.threshold),
+            busy_threshold(20),
             payload(c.payload),
             packetBits((c.payload + 1 + sizeof(Header)) * 10), // +1 for length
             carrierSize(c.carrierSize),
@@ -344,8 +377,8 @@ namespace OSI {
          *
          * @param sendbuf
          */
-        async def async_send(ByteStreamBuf &sendbuf) -> awaitable<void> {
-            co_await boost::asio::co_spawn(senderContext, [&](ByteStreamBuf &sendbuf) -> awaitable<void> {
+        async def async_send(ByteStreamBuffer &sendbuf) -> awaitable<void> {
+            co_await boost::asio::co_spawn(senderContext, [&](ByteStreamBuffer &sendbuf) -> awaitable<void> {
                 auto q = std::span(boost::asio::buffer_cast<const uint8_t *>(sendbuf.data()), sendbuf.size());
                 BitsContainer rawBits;
                 Header header;
@@ -384,7 +417,7 @@ namespace OSI {
          *
          * @param readbuf
          */
-        async def async_read(ByteStreamBuf &readbuf) -> awaitable<int> {
+        async def async_read(ByteStreamBuffer &readbuf) -> awaitable<int> {
             co_await boost::asio::co_spawn(receiverContext, [&]() -> awaitable<int> {
                 auto q = co_await wait_data();
                 auto p = std::span(boost::asio::buffer_cast<uint8_t *>(readbuf.prepare(q.size())), q.size());

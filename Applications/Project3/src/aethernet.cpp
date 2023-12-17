@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
             
             co_await asyncio.gather(
                 [&] () -> awaitable<void> {
-                    OSI::ByteStreamBuf buf;
+                    OSI::ByteStreamBuffer buf;
 
                     while (true) {
                         try {
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
                     co_return;
                     
                 }(), [&] () -> awaitable<void> {
-                    OSI::ByteStreamBuf buf;
+                    OSI::ByteStreamBuffer buf;
 
                     while (true) {
                         try {
@@ -94,6 +94,7 @@ int main(int argc, char **argv) {
                             break;
                         }
                     }
+                    co_return;
                     
                 }()
             );

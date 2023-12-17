@@ -11,6 +11,7 @@ target_link_libraries(project3_lib
         argparse
         npcap
         wintun
+        Utils
         project2_lib
 )
 

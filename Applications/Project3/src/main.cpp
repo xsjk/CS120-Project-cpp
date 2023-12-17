@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
 
             // --------------------- send bits ---------------------
             std::cout << std::endl;
-            OSI::ByteStreamBuf buf;
+            OSI::ByteStreamBuffer buf;
             auto bits = BitsContainer::from_bin(inputFile);
             for (auto i = 0; i < bits.size() / 8; i++)
                 buf.sputc(bits.get<8>(i).to_ulong());

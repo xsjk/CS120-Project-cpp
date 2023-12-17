@@ -18,6 +18,8 @@
 #include <queue>
 #include <exception>
 #include <condition_variable>
+#include <boost/asio.hpp>
+
 
 namespace utils {
 
@@ -161,7 +163,7 @@ namespace utils {
             std::ofstream dataFile { fileName };
             for (const auto &byte : *this) {
                 auto bs = std::bitset<8>(byte);
-                for (auto i = 0; i < 8; i++) 
+                for (auto i = 0; i < 8; i++)
                     dataFile << bs[i] << '\n';
             }
         }
@@ -187,10 +189,10 @@ namespace utils {
         friend std::ostream &operator<<(std::ostream &os, const ByteContainer &container) {
             for (auto i = 0; i < container.size(); i++) {
                 os << std::format("{:02x} ", container[i]);
-                if (i % 8 == 7) 
-                    os << ' '; 
-                if (i % 16 == 15) 
-                    os << '\n'; 
+                if (i % 8 == 7)
+                    os << ' ';
+                if (i % 16 == 15)
+                    os << '\n';
             }
             return os;
         }
@@ -206,7 +208,7 @@ namespace utils {
         std::_Bit_reference operator[](size_t i) {
             return std::_Bit_reference((std::_Bit_type *)&_data[i / CHAR_BIT], i % CHAR_BIT);
         }
-        BitView(void *data, size_t size) : _data((std::uint8_t*)data), _size(size) { }
+        BitView(void *data, size_t size) : _data((std::uint8_t *)data), _size(size) { }
         auto size() const { return _size; }
         auto data() const { return _data; }
         template<size_t N>
@@ -221,15 +223,15 @@ namespace utils {
 
     template <typename T>
     class ThreadSafeQueue {
-        
+
         mutable std::mutex mtx;
         std::queue<T> q;
         std::condition_variable cond_var;
 
     public:
-        ThreadSafeQueue() {}
+        ThreadSafeQueue() { }
 
-        void push(T&& value) {
+        void push(T &&value) {
             std::lock_guard<std::mutex> lock(mtx);
             q.push(std::move(value));
             cond_var.notify_one();
@@ -237,7 +239,7 @@ namespace utils {
 
         T pop() {
             std::unique_lock<std::mutex> lock(mtx);
-            cond_var.wait(lock, [this]{ return !q.empty(); });
+            cond_var.wait(lock, [this] { return !q.empty(); });
             T value = std::move(q.front());
             q.pop();
             return std::move(value);
@@ -255,6 +257,43 @@ namespace utils {
 
     };
 
+    class PacketStreamBuffer : public boost::asio::streambuf {
+
+        std::queue<size_t> packet_sizes;
+
+    public:
+
+        std::size_t front_packet_size() {
+            return packet_sizes.empty() ? 0 : packet_sizes.front();
+        }
+
+        using boost::asio::streambuf::prepare;
+        using boost::asio::streambuf::data;
+
+        void commit(std::size_t n) {
+            boost::asio::streambuf::commit(n);
+            packet_sizes.push(n);
+        }
+
+        void consume(std::size_t n) {
+            boost::asio::streambuf::consume(n);
+            while (n > 0 && !packet_sizes.empty()) {
+                if (packet_sizes.front() <= n) {
+                    n -= packet_sizes.front();
+                    packet_sizes.pop();
+                }
+                else {
+                    packet_sizes.front() -= n;
+                    break;
+                }
+            }
+        }
+
+        std::size_t num_packets_left() {
+            return packet_sizes.size();
+        }
+
+    };
 
 
     float mean(auto v) {
