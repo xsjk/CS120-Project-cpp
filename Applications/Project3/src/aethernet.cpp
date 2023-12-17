@@ -33,6 +33,7 @@ int main(int argc, char **argv) {
 
             auto ip = std::string(configObj.at("ip").as_string());
             auto name = std::string(configObj.at("name").as_string());
+            auto delay = (int)configObj.at("delay").as_int64();
 
             using namespace std::chrono_literals;
 
@@ -71,13 +72,13 @@ int main(int argc, char **argv) {
                         try {
                             auto n = co_await session->async_read(buf);
                             auto p = buf.data();
-                            std::cout << "1 ";
                             const auto ipv4 = (const IPV4_Header *) p.data();
-                            if (ipv4->src == IPV4_addr(ip).addr ||
-                                ipv4->protocal != unsigned(IPV4_Header::Protocal::ICMP)) {
+                            if (ipv4->protocal != unsigned(IPV4_Header::Protocal::ICMP)) {
                                 buf.consume(buf.size());
                             } else {
+                                std::cout << "1 ";
                                 WinTUN::PrintPacket((const uint8_t *)(p.data()), p.size());
+                                co_await asyncio.sleep(std::chrono::milliseconds(delay));
                                 co_await physicalLayer->async_send(buf);
                             }
                         }
@@ -94,12 +95,12 @@ int main(int argc, char **argv) {
                         try {
                             auto n = co_await physicalLayer->async_read(buf);
                             auto p = buf.data();
-                            std::cout << "2 ";
                             const auto ipv4 = (const IPV4_Header *) p.data();
                             if (ipv4->src == IPV4_addr(ip).addr ||
                                 ipv4->protocal != unsigned(IPV4_Header::Protocal::ICMP)) {
                                 buf.consume(buf.size());
                             } else {
+                                std::cout << "2 ";
                                 // std::cout << ByteContainer((const char *) p.data(), (const char *) p.data() + p.size()) << std::endl;
                                 WinTUN::PrintPacket((const uint8_t *)(p.data()), p.size());
                                 co_await session->async_send(buf);

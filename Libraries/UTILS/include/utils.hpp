@@ -18,7 +18,7 @@
 #include <queue>
 #include <exception>
 #include <condition_variable>
-#include <boost/asio.hpp>
+#include <boost/asio/streambuf.hpp>
 
 
 namespace utils {
