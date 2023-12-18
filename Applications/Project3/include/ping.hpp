@@ -23,16 +23,15 @@
 using namespace utils;
 
 
-inline ByteContainer create_ping_packet(
-    const MAC_addr_t &src_mac,
-    const MAC_addr_t &dst_mac,
+inline ByteContainer create_ping_request(
+    const MAC_addr &src_mac,
+    const MAC_addr &dst_mac,
     const IPV4_addr &src_ip,
     const IPV4_addr &dst_ip,
     const std::uint16_t &identifier,
-    const std::uint16_t &seq_num
+    const std::uint16_t &seq_num,
+    const ByteContainer &payload
 ) {
-
-    ByteContainer payload;
 
     using boost::asio::detail::socket_ops::host_to_network_short;
     using boost::asio::detail::socket_ops::host_to_network_long;
@@ -49,10 +48,11 @@ inline ByteContainer create_ping_packet(
         .tos = 0x00,
         .tlen = host_to_network_short(sizeof(IPV4_Header) + sizeof(ICMP_Header) + payload.size()),
         .id = 0x0000,
+        .frag_offset_0 = 0,
         .reserved = 0x00,
         .no_frag = 0x01,
         .more_frag = 0x00,
-        .frag_offset = 0x0000,
+        .frag_offset_1 = 0,
         .ttl = 0x80,
         .protocal = unsigned(IPV4_Header::Protocal::ICMP),
         .checksum = 0x0000,
@@ -61,19 +61,19 @@ inline ByteContainer create_ping_packet(
     };
 
     ipv4_header.checksum = checksum(std::span((uint8_t *)&ipv4_header, sizeof(IPV4_Header)));
+    ipv4_header.checksum = host_to_network_short(ipv4_header.checksum);
 
 
     ICMP_Header icmp_header = {
-        .type = 0x00,
+        .type = unsigned(ICMP_Header::Type::EchoRequest),
         .code = 0x00,
         .checksum = 0x0000,
         .identifier = identifier,
         .seq_num = seq_num
     };
 
-
     icmp_header.checksum = checksum(std::span((uint8_t *)&icmp_header, sizeof(ICMP_Header)), checksum(payload));
-    icmp_header.type = unsigned(ICMP_Header::Type::EchoRequest);
+    icmp_header.checksum = host_to_network_short(icmp_header.checksum);
 
     ByteContainer packet;
     packet.push(mac_header);
@@ -87,14 +87,15 @@ inline ByteContainer create_ping_packet(
 }
 
 struct PingPacketConfig {
-    MAC_addr_t src_mac;
-    MAC_addr_t dst_mac;
+    MAC_addr src_mac;
+    MAC_addr dst_mac;
     IPV4_addr src_ip;
     IPV4_addr dst_ip;
     std::uint16_t identifier;
     std::uint16_t seq_num;
+    ByteContainer payload;
 };
-inline def create_ping_packet(PingPacketConfig &&config) {
-    return create_ping_packet(config.src_mac, config.dst_mac, config.src_ip, config.dst_ip, config.identifier, config.seq_num);
+inline def create_ping_request(PingPacketConfig &&config) {
+    return create_ping_request(config.src_mac, config.dst_mac, config.src_ip, config.dst_ip, config.identifier, config.seq_num, config.payload);
 }
 

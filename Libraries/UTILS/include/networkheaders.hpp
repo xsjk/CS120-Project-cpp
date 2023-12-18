@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utils.hpp>
+#include <format>
 
 /**
  * @brief calculate the checksum of a container
@@ -24,28 +25,30 @@ uint16_t checksum(R &&container, uint16_t last_sum = 0) {
 }
 
 
-
-struct MAC_addr_t {
+struct MAC_addr {
     std::uint8_t bytes[6];
-    MAC_addr_t(std::initializer_list<std::uint8_t> list) {
+    MAC_addr() = default;
+    MAC_addr(std::initializer_list<std::uint8_t> list) {
         std::copy(list.begin(), list.end(), bytes);
     }
-    MAC_addr_t(const char *str) {
+    MAC_addr(const char *str) {
         if (std::sscanf(str, "%02hhx-%02hhx-%02hhx-%02hhx-%02hhx-%02hhx", bytes, bytes + 1, bytes + 2, bytes + 3, bytes + 4, bytes + 5) != 6
             && std::sscanf(str, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx", bytes, bytes + 1, bytes + 2, bytes + 3, bytes + 4, bytes + 5) != 6)
             throw std::runtime_error("invalid MAC address");
     }
-    MAC_addr_t(std::string str) : MAC_addr_t(str.c_str()) { }
+    MAC_addr(std::string str) : MAC_addr(str.c_str()) { }
     auto operator[](std::size_t i) const { return bytes[i]; }
     operator std::string() const {
         return std::format("{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}", bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
     }
 };
 
-static_assert(sizeof(MAC_addr_t) == 6);
+static_assert(sizeof(MAC_addr) == 6);
 
 
 union IPV4_addr {
+    IPV4_addr() : addr(0) {}
+    IPV4_addr(std::uint32_t addr) : addr(addr) {}
     std::uint32_t addr;
     std::uint8_t bytes[4];
     IPV4_addr(std::initializer_list<std::uint8_t> list) {
@@ -67,9 +70,14 @@ union IPV4_addr {
 static_assert(sizeof(IPV4_addr) == 4);
 
 struct MAC_Header {
-    MAC_addr_t dst;
-    MAC_addr_t src;
-    std::uint16_t type : 8 = 0x0008;
+    MAC_addr dst;
+    MAC_addr src;
+    std::uint16_t type = 0x0008;
+    enum class Type : uint16_t {
+        IPv4 = 0x0008,
+        ARP = 0x0608,
+        IPv6 = 0xDD86
+    };
 };
 
 static_assert(sizeof(MAC_Header) == 14);
@@ -83,10 +91,11 @@ struct IPV4_Header {
     unsigned tos : 8;        // type of service
     unsigned tlen : 16;       // header and payload total length
     unsigned id : 16;       // identification
+    unsigned frag_offset_0: 5;        // fragment offset
     unsigned reserved : 1;        // reserved bit
     unsigned no_frag : 1;        // no fragment
     unsigned more_frag : 1;        // more fragment
-    unsigned frag_offset : 13;       // fragment offset
+    unsigned frag_offset_1 : 8;       // fragment offset
     unsigned ttl : 8;        // time to live
     unsigned protocal : 8;        // protocal
     enum class Protocal {

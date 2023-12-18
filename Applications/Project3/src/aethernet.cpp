@@ -78,7 +78,8 @@ int main(int argc, char **argv) {
                             } else {
                                 std::cout << "1 ";
                                 WinTUN::PrintPacket((const uint8_t *)(p.data()), p.size());
-                                co_await asyncio.sleep(std::chrono::milliseconds(delay));
+                                if (delay != 0)
+                                    co_await asyncio.sleep(std::chrono::milliseconds(delay));
                                 co_await physicalLayer->async_send(buf);
                             }
                         }

@@ -134,7 +134,7 @@ namespace OSI {
                                 static BitsContainer rDataEncoded;  // bits encoded with 8B10B and container length, data and crc.
                                 static ByteContainer rDataDecoded;  // bytes only contains decoded data
 
-                                // get rDataEncoded from rSignal                                
+                                // get rDataEncoded from rSignal
                                 static auto dt = 0;
                                 static float sum = 0;
                                 static bool is_last_packet = false;
@@ -154,7 +154,7 @@ namespace OSI {
                                             byte = (uint8_t)decoded.to_ulong();
                                         } catch (const std::exception& e) {
                                             // misdetection of preamble
-                                            #ifdef DEBUG 
+                                            #ifdef DEBUG
                                                 std::cerr << "8B10B decode failed" << std::endl;
                                             #endif
                                             cur = Receiving::len;
@@ -188,7 +188,7 @@ namespace OSI {
                                                 rDataEncoded.clear();
                                                 CRCChecker.update(byte);
                                                 if (CRCChecker.q == 0) {
-                                                    // CRC OK    
+                                                    // CRC OK
                                                     static ByteContainer rDataBuffer;
                                                     for (auto i = 0; i < rDataDecoded.size(); i++)
                                                         rDataBuffer.push(rDataDecoded[i]);
@@ -279,8 +279,8 @@ namespace OSI {
 
         /**
          * @brief async wait for rData to arrive
-         * 
-         * @note you should call this funciton in receiverContext 
+         *
+         * @note you should call this funciton in receiverContext
          *       to ensure thread safety
          */
         async def wait_data() -> awaitable<ByteContainer> {
@@ -321,7 +321,7 @@ namespace OSI {
                 constexpr auto maxpayload = 1ull << (8 * sizeof(Header) - 1);
                 if (payload >= maxpayload) {
                     throw std::runtime_error(std::format(
-                        "Invalid argument \"payload\", \"payload\" should be smaller than {}, got payload = {}", 
+                        "Invalid argument \"payload\", \"payload\" should be smaller than {}, got payload = {}",
                         maxpayload, payload
                     ));
                 }
@@ -352,7 +352,7 @@ namespace OSI {
                             rawBits.push(encoded);
                         }
                     }
-                        
+
                     // apply 8B10B to data bits
                     auto byte = data.get<8>(i);
                     CRCChecker.update(byte.to_ulong());
@@ -384,7 +384,7 @@ namespace OSI {
                 Header header;
                 CRC8<7> CRCChecker;
                 CRCChecker.reset();
-                
+
                 for (auto i = 0; i < q.size(); i++) {
                     if (i % payload == 0) {
                         header.size = std::min<int>(q.size() - i, payload);
@@ -395,7 +395,7 @@ namespace OSI {
                             rawBits.push(encoded);
                         }
                     }
-                    
+
                     CRCChecker.update(q[i]);
                     rawBits.push(B8B10::encode(std::bitset<8>(q[i])));
 

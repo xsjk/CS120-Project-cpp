@@ -19,6 +19,7 @@
 #include <exception>
 #include <condition_variable>
 #include <boost/asio/streambuf.hpp>
+#include <format>
 
 
 namespace utils {
@@ -142,6 +143,10 @@ namespace utils {
         using value_type = uint8_t;
         using std::vector<uint8_t>::vector;
         using std::vector<uint8_t>::operator=;
+
+        template<std::ranges::input_range R>
+        ByteContainer(R &&r) : std::vector<uint8_t>(r.begin(), r.end()) { }
+        ByteContainer(const char *str) : ByteContainer(std::string(str)) { }
 
         template<typename T>
         auto as_span() { return std::span((T *)data(), size() / sizeof(T)); }

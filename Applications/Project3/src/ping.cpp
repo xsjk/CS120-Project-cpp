@@ -7,7 +7,7 @@
  */
 async def ping(std::string ip_addr) noexcept -> awaitable<std::optional<std::chrono::microseconds>> {
 
-    auto packet = create_ping_packet({
+    auto packet = create_ping_request({
         .src_mac = "80-45-dd-e5-c0-f9",
         .dst_mac = "bc-17-b8-30-39-b9",
         .src_ip = "192.168.43.231",

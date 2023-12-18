@@ -56,3 +56,9 @@ target_link_libraries(project3_aethernet
     PRIVATE
         project3_lib
 )
+
+add_executable(project3_forward_naive src/forward_naive.cpp)
+target_link_libraries(project3_forward_naive
+    PRIVATE
+        project3_lib
+)
