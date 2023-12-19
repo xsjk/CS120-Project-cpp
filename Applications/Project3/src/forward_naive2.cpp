@@ -40,61 +40,62 @@ std::map<IPV4_addr, MAC_addr> hotspot_ip_to_mac = {
 
 void packet_handler(u_char *user, const struct pcap_pkthdr *header, const u_char *packet) {
     // Check if it is an ICMP packet and forward it to wlan interface if needed
+    auto ip_header = reinterpret_cast<const IPV4_Header*>(packet);
+    if (ip_header->protocal == static_cast<unsigned>(IPV4_Header::Protocal::ICMP)) {
 
-    auto mac_header = reinterpret_cast<const MAC_Header*>(packet);
-    if (mac_header->type == static_cast<unsigned>(MAC_Header::Type::IPv4)) {
-        auto ip_header = reinterpret_cast<const IPV4_Header*>(packet + sizeof(MAC_Header));
-        if (ip_header->protocal == static_cast<unsigned>(IPV4_Header::Protocal::ICMP)) {
+        auto length = header->len;
+        auto packet_copy = utils::ByteContainer(packet, packet + length);
+        auto ip_header = reinterpret_cast<IPV4_Header*>(packet_copy.data());
+        auto icmp_header = reinterpret_cast<ICMP_Header*>(packet_copy.data() + sizeof(IPV4_Header));
+        auto icmp_payload_size = length - sizeof(IPV4_Header) - sizeof(ICMP_Header);
 
-            auto length = header->len;
-            auto packet_copy = utils::ByteContainer(packet, packet + length);
-            auto mac_header = reinterpret_cast<MAC_Header*>(packet_copy.data());
-            auto ip_header = reinterpret_cast<IPV4_Header*>(packet_copy.data() + sizeof(MAC_Header));
-            auto icmp_header = reinterpret_cast<ICMP_Header*>(packet_copy.data() + sizeof(MAC_Header) + sizeof(IPV4_Header));
-            auto icmp_payload_size = length - sizeof(MAC_Header) - sizeof(IPV4_Header) - sizeof(ICMP_Header);
+        if (icmp_header->type == static_cast<unsigned>(ICMP_Header::Type::EchoRequest)) {
+
+            if (ip_header->dst == IPV4_addr("1.1.1.1").addr &&
+                ip_header->src != WAN_IP.addr) {
+
+                std::cout << std::format(
+                    "Ping request from {} to {}",
+                    std::string(IPV4_addr(ip_header->src)),
+                    std::string(IPV4_addr(ip_header->dst))
+                ) << std::endl;
+
+                // save NAT translation
+                port_t id = port++;
+                // IPV4_addr dst = ip_header.dst;
+                IPV4_addr src (ip_header->src);
+                unsigned short old_id = icmp_header->identifier;
+                auto pair = std::make_pair(src, old_id);
+                NAT_table[id] = pair;
+
+                ip_header->id = 0;
+                ip_header->src = WAN_IP.addr;
+                ip_header->checksum = 0;
+                ip_header->checksum = checksum(std::span((uint8_t *)ip_header, sizeof(IPV4_Header)));
+                ip_header->checksum = host_to_network_short(ip_header->checksum);
+
+                icmp_header->checksum = 0;
+                icmp_header->identifier = id;
+                icmp_header->checksum = checksum(std::span((uint8_t *)icmp_header, sizeof(ICMP_Header) + icmp_payload_size));
+                icmp_header->checksum = host_to_network_short(icmp_header->checksum);
 
 
-            if (icmp_header->type == static_cast<unsigned>(ICMP_Header::Type::EchoRequest)) {
 
-                if (ip_header->dst == IPV4_addr("1.1.1.1").addr &&
-                    ip_header->src != WAN_IP.addr) {
+                MAC_Header mac_header = {
+                    .dst = "00-00-5e-00-01-01",
+                    .src = "BC-17-B8-30-39-B9",
+                    .type = 0x0008
+                };
 
-                    std::cout << std::format(
-                        "Ping request from {} to {}",
-                        std::string(IPV4_addr(ip_header->src)),
-                        std::string(IPV4_addr(ip_header->dst))
-                    ) << std::endl;
+                packet_copy.insert(packet_copy.begin(), (uint8_t *)&mac_header, (uint8_t *)&mac_header + sizeof(MAC_Header));
 
-                    // save NAT translation
-                    port_t id = port++;
-                    // IPV4_addr dst = ip_header.dst;
-                    IPV4_addr src (ip_header->src);
-                    unsigned short old_id = icmp_header->identifier;
-                    auto pair = std::make_pair(src, old_id);
-                    NAT_table[id] = pair;
+                // std::cout << "send packet to wlan: \n" << packet_copy << std::endl;
 
-					ip_header->id = 0;
-                    ip_header->src = WAN_IP.addr;
-                    ip_header->checksum = 0;
-                    ip_header->checksum = checksum(std::span((uint8_t *)ip_header, sizeof(IPV4_Header)));
-                    ip_header->checksum = host_to_network_short(ip_header->checksum);
-
-                    icmp_header->checksum = 0;
-                    icmp_header->identifier = id;
-                    icmp_header->checksum = checksum(std::span((uint8_t *)icmp_header, sizeof(ICMP_Header) + icmp_payload_size));
-                    icmp_header->checksum = host_to_network_short(icmp_header->checksum);
-
-                    mac_header->src = wlan_ip_to_mac.at(WAN_IP);
-                    mac_header->dst = wlan_ip_to_mac.at("1.1.1.1");
-
-                    std::cout << "send packet to wlan: \n" << packet_copy << std::endl;
-
-                    pcap_sendpacket(wlan_handle, packet_copy.data(), packet_copy.size());
-                } else {
-                    // already to WAN
-                }
-
+                pcap_sendpacket(wlan_handle, packet_copy.data(), packet_copy.size());
+            } else {
+                // already to WAN
             }
+
         }
     }
 }
@@ -141,12 +142,9 @@ void wlan_packet_handler(u_char *user, const struct pcap_pkthdr *header, const u
                     icmp_header->checksum = checksum(std::span((uint8_t *)icmp_header, sizeof(ICMP_Header) + icmp_payload_size));
                     icmp_header->checksum = host_to_network_short(icmp_header->checksum);
 
-                    mac_header->src = hotspot_ip_to_mac.at(LAN_IP);
-                    mac_header->dst = hotspot_ip_to_mac.at(dst);
-
                     std::cout << "send packet to hotspot: \n" << packet_copy << std::endl;
 
-                    pcap_sendpacket(handle, packet_copy.data(), packet_copy.size());
+                    pcap_sendpacket(handle, packet_copy.data() + sizeof(MAC_Header), packet_copy.size() - sizeof(MAC_Header));
                 }
             }
         }
@@ -220,7 +218,7 @@ int main()
                              65536,         // portion of the packet to capture.
                                             // 65536 grants that the whole packet will be captured on all the MACs.
                              1,             // promiscuous mode (nonzero means promiscuous)
-                             10,            // read timeout
+                             100,            // read timeout
                              errbuf         // error buffer
                              )) == NULL)
     {
@@ -241,34 +239,11 @@ int main()
                              65536,            // portion of the packet to capture.
                                             // 65536 grants that the whole packet will be captured on all the MACs.
                              1,                // promiscuous mode (nonzero means promiscuous)
-                             10,            // read timeout
+                             100,            // read timeout
                              errbuf            // error buffer
                              )) == NULL)
     {
         fprintf(stderr,"\nUnable to open the adapter. %s is not supported by Npcap\n", d->name);
-        /* Free the device list */
-        pcap_freealldevs(alldevs);
-        return -1;
-    }
-
-
-
-
-    struct bpf_program fcode;
-
-    //compile the filter
-    if (pcap_compile(handle, &fcode, "icmp", 1, 0xffffff) <0 )
-    {
-        fprintf(stderr,"\nUnable to compile the packet filter. Check the syntax.\n");
-        /* Free the device list */
-        pcap_freealldevs(alldevs);
-        return -1;
-    }
-
-    //set the filter
-    if (pcap_setfilter(handle, &fcode)<0)
-    {
-        fprintf(stderr,"\nError setting the filter.\n");
         /* Free the device list */
         pcap_freealldevs(alldevs);
         return -1;
