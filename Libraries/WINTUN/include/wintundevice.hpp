@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <asyncio.hpp>
 #include <networkheaders.hpp>
+#include <asyncio.hpp>
 
 
 namespace WinTUN {
@@ -345,6 +346,7 @@ struct CtrlHandler {
             case CTRL_SHUTDOWN_EVENT:
                 Log(WINTUN_LOG_INFO, L"Cleaning up and shutting down...");
                 Device::request_stop_all();
+                asyncio.pause();
                 return TRUE;
         }
         return FALSE;
