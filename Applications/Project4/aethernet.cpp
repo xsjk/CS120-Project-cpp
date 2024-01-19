@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
 
             auto ip = std::string(configObj.at("ip").as_string());
             auto name = std::string(configObj.at("name").as_string());
-            auto delay = (int)configObj.at("delay").as_int64();
+            auto delay = int(configObj.at("delay").as_int64());
             auto my_ip = IPV4_addr(ip);
 
             using namespace std::chrono_literals;
@@ -88,7 +88,8 @@ int main(int argc, char **argv) {
                             #endif
                             (
                                 ipv4->protocal == unsigned(IPV4_Header::Protocal::ICMP) ||
-                                ipv4->protocal == unsigned(IPV4_Header::Protocal::UDP)
+                                ipv4->protocal == unsigned(IPV4_Header::Protocal::UDP) ||
+                                ipv4->protocal == unsigned(IPV4_Header::Protocal::TCP)
                             )) {
                                 std::cout << "1 ";
                                 WinTUN::PrintPacket((const uint8_t *)(p.data()), p.size());
@@ -127,7 +128,8 @@ int main(int argc, char **argv) {
                             #endif
                             (
                                 ipv4->protocal == unsigned(IPV4_Header::Protocal::ICMP) || 
-                                ipv4->protocal == unsigned(IPV4_Header::Protocal::UDP)
+                                ipv4->protocal == unsigned(IPV4_Header::Protocal::UDP) ||
+                                ipv4->protocal == unsigned(IPV4_Header::Protocal::TCP)
                             )) {
                                 std::cout << "2 ";
                                 // std::cout << ByteContainer((const char *) p.data(), (const char *) p.data() + p.size()) << std::endl;
