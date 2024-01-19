@@ -91,7 +91,7 @@ namespace OSI {
             }
             rSignalBuffer.commit(view.getNumSamples() * sizeof(float));
 
-            busy = sum > busy_threshold;
+            busy = sum > threshold;
 
             // process received signal in the receiver context (in another thread)
             // so that the inputCallback will not be blocked
@@ -226,7 +226,6 @@ namespace OSI {
 
         const float amplitude;  // amplitude of the sending signal
         const float threshold;  // threshold for preamble detection
-        const float busy_threshold;  // threshold for busy detection
         const int payload;      // bytes per CRC check
         const int packetBits;   // bits per packet (calculated by payload)
         const int carrierSize;  // size of carrier
@@ -311,7 +310,6 @@ namespace OSI {
         AsyncPhysicalLayer(Config c)
           : amplitude(c.amplitude),
             threshold(c.threshold),
-            busy_threshold(20),
             payload(c.payload),
             packetBits((c.payload + 1 + sizeof(Header)) * 10), // +1 for length
             carrierSize(c.carrierSize),
