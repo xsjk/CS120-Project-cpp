@@ -47,8 +47,8 @@ static_assert(sizeof(MAC_addr) == 6);
 
 
 union IPV4_addr {
-    IPV4_addr() : addr(0) {}
-    IPV4_addr(std::uint32_t addr) : addr(addr) {}
+    IPV4_addr() : addr(0) { }
+    IPV4_addr(std::uint32_t addr) : addr(addr) { }
     std::uint32_t addr;
     std::uint8_t bytes[4];
     IPV4_addr(std::initializer_list<std::uint8_t> list) {
@@ -64,6 +64,15 @@ union IPV4_addr {
     }
     operator std::uint32_t() const {
         return addr;
+    }
+    std::uint8_t &operator[](size_t i) {
+        return bytes[i];
+    }
+    const std::uint8_t &operator[](size_t i) const {
+        return bytes[i];
+    }
+    auto operator<=>(const IPV4_addr &other) const {
+        return addr <=> other.addr;
     }
 };
 
@@ -86,24 +95,24 @@ static_assert(sizeof(MAC_Header) == 14);
 
 /* IPv4 header */
 struct IPV4_Header {
-    unsigned ihl : 4 = 5;    // unsignedernet header length
-    unsigned version : 4 = 4;    // version
-    unsigned tos : 8;        // type of service
-    unsigned tlen : 16;       // header and payload total length
-    unsigned id : 16;       // identification
-    unsigned frag_offset_0: 5;        // fragment offset
-    unsigned reserved : 1;        // reserved bit
-    unsigned no_frag : 1;        // no fragment
-    unsigned more_frag : 1;        // more fragment
-    unsigned frag_offset_1 : 8;       // fragment offset
-    unsigned ttl : 8;        // time to live
-    unsigned protocal : 8;        // protocal
+    unsigned ihl : 4 = 5;       // unsignedernet header length
+    unsigned version : 4 = 4;   // version
+    unsigned tos : 8;           // type of service
+    unsigned tlen : 16;         // header and payload total length
+    unsigned id : 16;           // identification
+    unsigned frag_offset_1 : 5; // fragment offset
+    unsigned reserved : 1;      // reserved bit
+    unsigned no_frag : 1;       // no fragment
+    unsigned more_frag : 1;     // more fragment
+    unsigned frag_offset_0 : 8; // fragment offset
+    unsigned ttl : 8;           // time to live
+    unsigned protocal : 8;      // protocal
     enum class Protocal {
         ICMP = 1, IGMP = 2, IP = 4, TCP = 6, IPv6 = 41, UDP = 17
     };
-    unsigned checksum : 16;       // checksum
-    unsigned src : 32;       // source address
-    unsigned dst : 32;       // destination address
+    unsigned checksum : 16;     // checksum
+    unsigned src : 32;          // source address
+    unsigned dst : 32;          // destination address
 };
 
 static_assert(sizeof(IPV4_Header) == 20);

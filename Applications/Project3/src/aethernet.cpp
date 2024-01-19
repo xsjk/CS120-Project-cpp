@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
             auto ip = std::string(configObj.at("ip").as_string());
             auto name = std::string(configObj.at("name").as_string());
             auto delay = (int)configObj.at("delay").as_int64();
+            auto my_ip = IPV4_addr(ip);
 
             using namespace std::chrono_literals;
 
@@ -73,7 +74,10 @@ int main(int argc, char **argv) {
                             auto n = co_await session->async_read(buf);
                             auto p = buf.data();
                             const auto ipv4 = (const IPV4_Header *) p.data();
-                            if (ipv4->protocal != unsigned(IPV4_Header::Protocal::ICMP)) {
+                            IPV4_addr src_ip = ipv4->src;
+                            IPV4_addr dst_ip = ipv4->dst;
+                            if (ipv4->protocal != unsigned(IPV4_Header::Protocal::ICMP) ||
+                                dst_ip == my_ip) {
                                 buf.consume(buf.size());
                             } else {
                                 std::cout << "1 ";
@@ -97,7 +101,9 @@ int main(int argc, char **argv) {
                             auto n = co_await physicalLayer->async_read(buf);
                             auto p = buf.data();
                             const auto ipv4 = (const IPV4_Header *) p.data();
-                            if (ipv4->src == IPV4_addr(ip).addr ||
+                            IPV4_addr src_ip = ipv4->src;
+                            if (src_ip == my_ip || 
+                                !(src_ip[0] == my_ip[0] && src_ip[1] == my_ip[1] && src_ip[2] == my_ip[2]) ||
                                 ipv4->protocal != unsigned(IPV4_Header::Protocal::ICMP)) {
                                 buf.consume(buf.size());
                             } else {

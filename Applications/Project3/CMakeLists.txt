@@ -68,3 +68,9 @@ target_link_libraries(project3_forward_naive2
     PRIVATE
         project3_lib
 )
+
+add_executable(project3_forward_naive3 src/forward_naive3.cpp)
+target_link_libraries(project3_forward_naive3
+    PRIVATE
+        project3_lib
+)
