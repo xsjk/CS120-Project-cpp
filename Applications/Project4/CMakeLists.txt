@@ -1,0 +1,7 @@
+add_executable(project4_aethernet_host aethernet.cpp)
+target_compile_definitions(project4_aethernet_host PRIVATE HOST)
+target_link_libraries(project4_aethernet_host PRIVATE project3_lib)
+
+add_executable(project4_aethernet_router aethernet.cpp)
+target_compile_definitions(project4_aethernet_router PRIVATE ROUTER)
+target_link_libraries(project4_aethernet_router PRIVATE project3_lib)

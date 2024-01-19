@@ -98,7 +98,9 @@ namespace OSI {
             boost::asio::post(receiverContext, [&] {
 
                 static int fromLastPreamble = 0;
+                #ifdef RECORD
                 static std::ofstream rSignalFile { "rSignal.txt" };
+                #endif
                 static CRC8<0x7> CRCChecker;
                 static enum class ReceiveState : char {
                     preambleDetection,
@@ -108,7 +110,9 @@ namespace OSI {
                 auto rSignal = std::span(boost::asio::buffer_cast<const float *>(rSignalBuffer.data()), rSignalBuffer.size() / sizeof(float));
 
                 for (auto t = 0; t < rSignal.size(); t++, fromLastPreamble++) {
+                    #ifdef RECORD
                     rSignalFile << rSignal[t] << '\n';
+                    #endif
                     switch (receiveState) {
                         case ReceiveState::preambleDetection:
                             {
@@ -250,8 +254,10 @@ namespace OSI {
 
             assert(rawBits.size() % 10 == 0);
 
+            #ifdef RECORD
             static std::ofstream sSignalFile { "sSignal.txt" };
             rawBits.to_file("sData.txt");
+            #endif
 
             auto nBits = rawBits.size();
             auto nPacket = nBits / packetBits;
@@ -271,8 +277,10 @@ namespace OSI {
                 for (auto j = 0; j < interSize; j++)
                     p[t++] = 0;
             }
+            #ifdef RECORD
             for (auto i = 0; i < t; i++)
                 sSignalFile << p[i] << '\n';
+            #endif
             sSignalBuffer.commit(t * sizeof(float));
 
         }
