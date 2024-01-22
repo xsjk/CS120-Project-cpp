@@ -7,7 +7,7 @@ add_library(ASIO SHARED ${COMMON_SOURCES} ${HOST_SOURCES} ${HOST_PC_SOURCES})
 
 # for clang
 find_package(Threads REQUIRED)
-target_link_libraries(ASIO ${CMAKE_THREAD_LIBS_INIT} Utils)
+target_link_libraries(ASIO ${CMAKE_THREAD_LIBS_INIT} utils)
 
 target_include_directories(ASIO PUBLIC common)
 target_include_directories(ASIO PUBLIC host)

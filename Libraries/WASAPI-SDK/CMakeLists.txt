@@ -9,5 +9,5 @@ target_include_directories(WASAPI
 target_link_libraries(WASAPI 
     INTERFACE 
         Avrt
-        Utils
+        utils
 )

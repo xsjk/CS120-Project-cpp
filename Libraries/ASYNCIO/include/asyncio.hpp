@@ -2,15 +2,10 @@
 
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/experimental/promise.hpp>
 #include <iostream>
 #include <optional>
 #include <ranges>
 #include <thread>
-#include "utils.hpp"
-
-#define async Awaitable
-#define def auto
 
 using boost::asio::awaitable;
 using namespace std::chrono_literals;
@@ -28,6 +23,8 @@ constexpr bool is_awaitable_v = is_awaitable_t<T>::value;
 template <typename T>
 concept Awaitable = is_awaitable_v<T>;
 
+#define def auto
+#define async Awaitable
 
 struct TimeoutError : std::runtime_error {
     TimeoutError(auto time) : std::runtime_error(
@@ -54,12 +51,12 @@ public:
     Asyncio() : signals(ctx, SIGINT, SIGTERM) {}
 
     template<typename T>
-    auto create_task(awaitable<T> &&coro) {
+    def create_task(awaitable<T> &&coro) {
         using boost::asio::experimental::awaitable_operators::detail::awaitable_wrap;
         return boost::asio::co_spawn(ctx, awaitable_wrap(std::move(coro)), boost::asio::deferred);
     }
 
-    auto create_task(awaitable<void> &&coro) {
+    def create_task(awaitable<void> &&coro) {
         return boost::asio::co_spawn(ctx, std::move(coro), boost::asio::deferred);
     }
 
@@ -99,13 +96,13 @@ public:
     T run(awaitable<T> &&coro) {
         signals.async_wait([&](const boost::system::error_code &error, int signal) {
             if (error) {
-                std::cout << "Error: " << error.message() << std::endl;
+                std::cerr << "Error: " << error.message() << std::endl;
             }
             else if (signal == SIGINT) {
-                std::cout << "SIGINT" << std::endl;
+                std::cerr << "SIGINT" << std::endl;
             }
             else if (signal == SIGTERM) {
-                std::cout << "SIGTERM" << std::endl;
+                std::cerr << "SIGTERM" << std::endl;
             }
             pause();
         });
@@ -132,13 +129,13 @@ public:
     void run(awaitable<void> &&coro) {
         signals.async_wait([&](const boost::system::error_code &error, int signal) {
             if (error) {
-                std::cout << "Error: " << error.message() << std::endl;
+                std::cerr << "Error: " << error.message() << std::endl;
             }
             else if (signal == SIGINT) {
-                std::cout << "SIGINT" << std::endl;
+                std::cerr << "SIGINT" << std::endl;
             }
             else if (signal == SIGTERM) {
-                std::cout << "SIGTERM" << std::endl;
+                std::cerr << "SIGTERM" << std::endl;
             }
             pause();
         });
@@ -280,7 +277,7 @@ public:
      * @param corr... the coroutines/futures to aggregate
      * @return a coroutine wrapping the results in a tuple
      */
-    template<Awaitable... T>
+    template<async... T>
     static async def gather(T&&... corr) { 
         return (... && std::forward<T>(corr)); 
     }
@@ -291,7 +288,7 @@ public:
      * @param corrs a tuple of coroutines
      * @return a coroutine wrapping the results in a tuple
      */
-    template<Awaitable... T>
+    template<async... T>
     static async def gather(std::tuple<T...> &&corrs) {
         return std::apply([](auto &&... corr) { return (gather(std::move(corr)...)); }, std::move(corrs));
     }
