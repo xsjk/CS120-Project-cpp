@@ -45,7 +45,6 @@ public:
 
 class Asyncio {
     boost::asio::io_context ctx;
-    boost::asio::thread_pool pool;
     boost::asio::signal_set signals;
 public:
     Asyncio() : signals(ctx, SIGINT, SIGTERM) {}
@@ -74,17 +73,12 @@ public:
      * @brief run a sync function in the background
      *        by creating a task and detaching it
      * 
-     * @tparam use_thread_pool use the thread pool instead of creating a new thread
      * @param f the function to run
      * @note thread safety is not guaranteed 
      */
-    template<bool use_thread_pool = true>
     def detach_task(auto &&f) -> void {
         using F = decltype(f);
-        if constexpr(use_thread_pool)
-            boost::asio::post(pool, std::forward<F>(f));
-        else
-            std::jthread(std::forward<F>(f)).detach();
+        std::jthread(std::forward<F>(f)).detach();
     }
 
     /**
