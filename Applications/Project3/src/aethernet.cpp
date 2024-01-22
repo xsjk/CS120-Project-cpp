@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
                             const auto ipv4 = (const IPV4_Header *) p.data();
                             IPV4_addr src_ip = ipv4->src;
                             IPV4_addr dst_ip = ipv4->dst;
-                            if (ipv4->protocal != unsigned(IPV4_Header::Protocal::ICMP) ||
+                            if (ipv4->protocol != unsigned(IPV4_Header::Protocol::ICMP) ||
                                 dst_ip == my_ip) {
                                 buf.consume(buf.size());
                             } else {
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
                             IPV4_addr src_ip = ipv4->src;
                             if (src_ip == my_ip || 
                                 !(src_ip[0] == my_ip[0] && src_ip[1] == my_ip[1] && src_ip[2] == my_ip[2]) ||
-                                ipv4->protocal != unsigned(IPV4_Header::Protocal::ICMP)) {
+                                ipv4->protocol != unsigned(IPV4_Header::Protocol::ICMP)) {
                                 buf.consume(buf.size());
                             } else {
                                 std::cout << "2 ";

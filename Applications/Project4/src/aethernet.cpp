@@ -88,9 +88,9 @@ int main(int argc, char **argv) {
                                 dst_ip[3] != my_ip[3] &&
                             #endif
                             (
-                                ipv4->protocal == unsigned(IPV4_Header::Protocal::ICMP) ||
-                                ipv4->protocal == unsigned(IPV4_Header::Protocal::UDP) ||
-                                ipv4->protocal == unsigned(IPV4_Header::Protocal::TCP)
+                                ipv4->protocol == unsigned(IPV4_Header::Protocol::ICMP) ||
+                                ipv4->protocol == unsigned(IPV4_Header::Protocol::UDP) ||
+                                ipv4->protocol == unsigned(IPV4_Header::Protocol::TCP)
                             )) {
                                 std::cout << "1 ";
                                 WinTUN::PrintPacket((const uint8_t *)(p.data()), p.size());
@@ -128,9 +128,9 @@ int main(int argc, char **argv) {
                                 src_ip[3] != my_ip[3] &&
                             #endif
                             (
-                                ipv4->protocal == unsigned(IPV4_Header::Protocal::ICMP) || 
-                                ipv4->protocal == unsigned(IPV4_Header::Protocal::UDP) ||
-                                ipv4->protocal == unsigned(IPV4_Header::Protocal::TCP)
+                                ipv4->protocol == unsigned(IPV4_Header::Protocol::ICMP) || 
+                                ipv4->protocol == unsigned(IPV4_Header::Protocol::UDP) ||
+                                ipv4->protocol == unsigned(IPV4_Header::Protocol::TCP)
                             )) {
                                 std::cout << "2 ";
                                 // std::cout << ByteContainer((const char *) p.data(), (const char *) p.data() + p.size()) << std::endl;

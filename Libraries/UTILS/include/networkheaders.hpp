@@ -58,6 +58,8 @@ union IPV4_addr {
         if (std::sscanf(str, "%hhu.%hhu.%hhu.%hhu", bytes, bytes + 1, bytes + 2, bytes + 3) != 4)
             throw std::runtime_error("invalid IPv4 address");
     }
+    constexpr IPV4_addr(int a, int b, int c, int d)
+     : bytes{ (std::uint8_t)a, (std::uint8_t)b, (std::uint8_t)c, (std::uint8_t)d } { }
     IPV4_addr(std::string str) : IPV4_addr(str.c_str()) { }
     operator std::string() const {
         return std::format("{:d}.{:d}.{:d}.{:d}", (int)bytes[0], (int)bytes[1], (int)bytes[2], (int)bytes[3]);
@@ -106,8 +108,8 @@ struct IPV4_Header {
     unsigned more_frag : 1;     // more fragment
     unsigned frag_offset_0 : 8; // fragment offset
     unsigned ttl : 8;           // time to live
-    unsigned protocal : 8;      // protocal
-    enum class Protocal {
+    unsigned protocol : 8;      // protocol
+    enum class Protocol {
         ICMP = 1, IGMP = 2, IP = 4, TCP = 6, IPv6 = 41, UDP = 17
     };
     unsigned checksum : 16;     // checksum
@@ -146,6 +148,44 @@ struct ICMP_Header {
 
 static_assert(sizeof(ICMP_Header) == 8);
 
+/* TCP header */
+struct TCP_Header {
+    unsigned src_port : 16;         // Source port
+    unsigned dst_port : 16;         // Destination port
+    unsigned seq_num : 32;          // Sequence number
+    unsigned ack_num : 32;          // Acknowledgment number
+    unsigned aec : 1;               // Accurate ECN
+    unsigned reserved : 3;          // Reserved for future use (must be zero)
+    unsigned length : 4;            // Header length / 4
+    unsigned fin : 1;               // No more data from sender
+    unsigned syn : 1;               // Synchronize sequence numbers
+    unsigned rst : 1;               // Reset the connection
+    unsigned psh : 1;               // Push function
+    unsigned ack : 1;               // Acknowledgment field significant
+    unsigned urg : 1;               // Urgent pointer field significant
+    unsigned ece : 1;               // ECN-Echo
+    unsigned cwr : 1;               // Congestion window reduced
+    unsigned window : 16;           // Window size
+    unsigned checksum : 16;         // Checksum
+    unsigned urgent : 16;           // Urgent pointer
+
+    // Options (if data_offset > 5, not included in this struct)
+    // unsigned options[...];
+};
+
+static_assert(sizeof(TCP_Header) == 20);
+
+
+/* Pseudo header */
+struct Pseudo_Header {
+    unsigned src : 32;
+    unsigned dst : 32;
+    unsigned zero : 8;
+    unsigned protocol : 8;
+    unsigned length : 16;
+};
+
+static_assert(sizeof(Pseudo_Header) == 12);
 
 template<typename Header, typename Payload>
 struct Packet {

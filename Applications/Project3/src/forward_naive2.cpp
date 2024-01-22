@@ -41,7 +41,7 @@ std::map<IPV4_addr, MAC_addr> hotspot_ip_to_mac = {
 void packet_handler(u_char *user, const struct pcap_pkthdr *header, const u_char *packet) {
     // Check if it is an ICMP packet and forward it to wlan interface if needed
     auto ip_header = reinterpret_cast<const IPV4_Header*>(packet);
-    if (ip_header->protocal == static_cast<unsigned>(IPV4_Header::Protocal::ICMP)) {
+    if (ip_header->protocol == static_cast<unsigned>(IPV4_Header::Protocol::ICMP)) {
 
         auto length = header->len;
         auto packet_copy = utils::ByteContainer(packet, packet + length);
@@ -107,7 +107,7 @@ void wlan_packet_handler(u_char *user, const struct pcap_pkthdr *header, const u
     if (mac_header->type == static_cast<unsigned>(MAC_Header::Type::IPv4)) {
 
         auto ip_header = reinterpret_cast<const IPV4_Header*>(packet + sizeof(MAC_Header));
-        if (ip_header->protocal == static_cast<unsigned>(IPV4_Header::Protocal::ICMP)) {
+        if (ip_header->protocol == static_cast<unsigned>(IPV4_Header::Protocol::ICMP)) {
 
             auto length = header->len;
             auto packet_copy = utils::ByteContainer(packet, packet + length);

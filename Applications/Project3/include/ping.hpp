@@ -54,7 +54,7 @@ inline ByteContainer create_ping_request(
         .more_frag = 0x00,
         .frag_offset_0 = 0,
         .ttl = 0x80,
-        .protocal = unsigned(IPV4_Header::Protocal::ICMP),
+        .protocol = unsigned(IPV4_Header::Protocol::ICMP),
         .checksum = 0x0000,
         .src = src_ip,
         .dst = dst_ip
