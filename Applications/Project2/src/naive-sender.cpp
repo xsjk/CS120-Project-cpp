@@ -69,7 +69,7 @@ public:
         }
 
         for (auto i = 0; i < carrierSize; i++) {
-            carrier.emplace_back(1);
+            carrier.emplace_back(1.f);
         }
 
         bool dataBit;
@@ -106,7 +106,7 @@ public:
         float amp = 0.1;
         for (; i < sDataEncoded.size(); i+=packetBits) {
             for (auto j = 0; j < interSize; j++) {
-                sSignal.emplace_back(0);
+                sSignal.emplace_back(0.f);
             }
             for (auto j = 0; j < preamble.size(); j++) {
                 sSignal.emplace_back(preamble[j] * amp);
@@ -117,7 +117,7 @@ public:
                 }
             }
             for (auto j = 0; j < interSize; j++) {
-                sSignal.emplace_back(0);
+                sSignal.emplace_back(0.f);
             }
         }
 

@@ -171,11 +171,12 @@ public:
      */
     async def wait_for(awaitable<void> &&coro, auto timeout) -> awaitable<void> {
         try {
-            std::get<0>(co_await(std::move(coro) || sleep(timeout)));
+            co_await(std::move(coro) || sleep(timeout));
         }
         catch (const std::bad_variant_access &e) {
             throw TimeoutError(timeout);
         }
+        co_return;
     }
     
     /**

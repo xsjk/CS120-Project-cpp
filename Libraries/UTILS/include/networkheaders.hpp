@@ -113,8 +113,8 @@ struct IPV4_Header {
         ICMP = 1, IGMP = 2, IP = 4, TCP = 6, IPv6 = 41, UDP = 17
     };
     unsigned checksum : 16;     // checksum
-    unsigned src : 32;          // source address
-    unsigned dst : 32;          // destination address
+    unsigned src;               // source address
+    unsigned dst;               // destination address
 };
 
 static_assert(sizeof(IPV4_Header) == 20);
@@ -152,8 +152,8 @@ static_assert(sizeof(ICMP_Header) == 8);
 struct TCP_Header {
     unsigned src_port : 16;         // Source port
     unsigned dst_port : 16;         // Destination port
-    unsigned seq_num : 32;          // Sequence number
-    unsigned ack_num : 32;          // Acknowledgment number
+    unsigned seq_num;               // Sequence number
+    unsigned ack_num;               // Acknowledgment number
     unsigned aec : 1;               // Accurate ECN
     unsigned reserved : 3;          // Reserved for future use (must be zero)
     unsigned length : 4;            // Header length / 4
@@ -178,8 +178,8 @@ static_assert(sizeof(TCP_Header) == 20);
 
 /* Pseudo header */
 struct Pseudo_Header {
-    unsigned src : 32;
-    unsigned dst : 32;
+    unsigned src;
+    unsigned dst;
     unsigned zero : 8;
     unsigned protocol : 8;
     unsigned length : 16;

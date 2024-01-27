@@ -1,14 +1,14 @@
 #include "asiosys.h"
+#include "Unknwn.h"
 #include "asio.h"
 
 /* Forward Declarations */ 
 
 #ifndef __ASIODRIVER_FWD_DEFINED__
 #define __ASIODRIVER_FWD_DEFINED__
-typedef interface IASIO IASIO;
 #endif 	/* __ASIODRIVER_FWD_DEFINED__ */
 
-interface IASIO : public IUnknown
+struct IASIO : public IUnknown
 {
 	virtual ASIOBool init(void *sysHandle) = 0;
 	virtual void getDriverName(char *name) = 0;	

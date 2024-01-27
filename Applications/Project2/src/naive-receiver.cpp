@@ -60,7 +60,7 @@ public:
         }
 
         for (auto i = 0; i < carrierSize; i++) {
-            carrier.emplace_back(1);
+            carrier.emplace_back(1.f);
         }
 
     }

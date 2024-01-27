@@ -12,7 +12,6 @@
 #include <memory>
 #include <optional>
 #include <string_view>
-#include <cxxabi.h>
 #include <generator>
 #include <mutex>
 #include <queue>
@@ -20,6 +19,9 @@
 #include <condition_variable>
 #include <boost/asio/streambuf.hpp>
 #include <format>
+#ifdef __GNUC__
+#include <cxxabi.h>
+#endif
 
 
 namespace utils {
@@ -210,9 +212,11 @@ namespace utils {
         std::size_t _size;
 
     public:
-        std::_Bit_reference operator[](size_t i) {
+        #ifdef __GNUC__
+        auto operator[](size_t i) {
             return std::_Bit_reference((std::_Bit_type *)&_data[i / CHAR_BIT], i % CHAR_BIT);
         }
+        #endif
         BitView(void *data, size_t size) : _data((std::uint8_t *)data), _size(size) { }
         auto size() const { return _size; }
         auto data() const { return _data; }
@@ -381,21 +385,25 @@ namespace utils {
 
     template <typename T>
     std::string dynamic_typename() {
-        const char *mangledName = typeid(T).name();
-        int status = -1;
+        #if defined(_MSC_VER)
+            return typeid(T).name();
+        #elif defined(__clang__) || defined(__GNUC__)
+            const char *mangledName = typeid(T).name();
+            int status = -1;
 
-        // __cxa_demangle allocates memory for the demangled name using malloc
-        // and returns it. We need to free this memory ourselves.
-        std::unique_ptr<char, void (*)(void *)> demangledName(
-            abi::__cxa_demangle(mangledName, nullptr, nullptr, &status),
-            std::free
-        );
+            // __cxa_demangle allocates memory for the demangled name using malloc
+            // and returns it. We need to free this memory ourselves.
+            std::unique_ptr<char, void (*)(void *)> demangledName(
+                abi::__cxa_demangle(mangledName, nullptr, nullptr, &status),
+                std::free
+            );
 
-        // If demangling is successful, status is set to 0
-        if (status == 0 && demangledName)
-            return demangledName.get();
-        else
-            return mangledName;
+            // If demangling is successful, status is set to 0
+            if (status == 0 && demangledName)
+                return demangledName.get();
+            else
+                return mangledName;
+        #endif
     }
 
     std::string dynamic_typename(auto &&t) {

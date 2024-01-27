@@ -331,7 +331,7 @@ async auto AsyncPhysicalLayer::async_send(ByteStreamBuffer &sendbuf) -> awaitabl
 }
 
 async auto AsyncPhysicalLayer::async_read(ByteStreamBuffer &readbuf) -> awaitable<int> {
-    co_await boost::asio::co_spawn(receiverContext, [&]() -> awaitable<int> {
+    co_return co_await boost::asio::co_spawn(receiverContext, [&]() -> awaitable<int> {
         auto q = co_await wait_data();
         auto p = std::span(boost::asio::buffer_cast<uint8_t *>(readbuf.prepare(q.size())), q.size());
         for (auto i = 0; i < p.size(); i++)

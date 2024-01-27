@@ -12,7 +12,7 @@ class AsioDrivers : public CodeFragments
 #include <windows.h>
 #include "asiolist.h"
 
-class AsioDrivers : public AsioDriverList
+class ASIO_API AsioDrivers : public AsioDriverList
 
 #elif SGI || BEOS
 #include "asiolist.h"

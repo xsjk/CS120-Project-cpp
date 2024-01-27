@@ -7,6 +7,8 @@
 #include <fstream>
 #include <bitset>
 #include <cmath>
+#include <numbers>
+#include <iostream>
 
 #include "generator.hpp"
 
@@ -28,11 +30,11 @@ struct Modem {
 
     Generator<float> create(Symbol symbol) {
         // std::cout << "(Sender) Create symbol " << (int)symbol << '\n';
-        return {encode(symbol), symbol_duration, "Symbol " + std::to_string(symbol)};
+        return { encode(symbol), symbol_duration, "Symbol " + std::to_string(symbol) };
     }
 
-    virtual void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) = 0;
-    virtual std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) = 0;
+    virtual void symbol_to_bits(Symbol symbol, std::vector<bool> &bits) = 0;
+    virtual std::vector<Symbol> bits_to_symbols(const std::vector<bool> &bits) = 0;
 
     virtual Generator<float> create_calibrate() = 0;
 
@@ -41,7 +43,7 @@ struct Modem {
     }
     Generator<float> create_data_end() {
         // stop for two symbol_duration
-        return {[](int){return 0;}, symbol_duration * 3, "Data End"};
+        return { [](int) {return 0.f;}, symbol_duration * 3, "Data End" };
     }
 
     enum class SymbolType {
@@ -50,7 +52,7 @@ struct Modem {
         Error,
         Pass,
     };
-    
+
     virtual SymbolType symbol_type(Symbol symbol) {
         if (symbol == (Symbol)-1)
             return SymbolType::Pass;
@@ -70,10 +72,9 @@ class FreqModem : public Modem {
     std::vector<float> omegas;
 
 public:
-    
+
     FreqModem(std::vector<float> omegas, int symbol_duration)
-        : Modem(symbol_duration, 1 << omegas.size()), omegas(omegas)
-    {
+        : Modem(symbol_duration, 1 << omegas.size()), omegas(omegas) {
         std::cout << "(Receiver) Set Symbol Frequncies: [";
         for (auto f : omegas)
             std::cout << f << ", ";
@@ -102,25 +103,13 @@ public:
         config.symbol_duration,
         } { }
     
-    // std::vector<Generator<float>> create(const std::vector<bool>& data) override {
-    //     std::vector<Generator<float>> funcs;
-    //     int bit_per_symbol = std::log2(symbol_count - 1);
-    //     for (int i = 0; i < data.size(); i += bit_per_symbol) {
-    //         Modem::Symbol symbol = 0;
-    //         for (int j = 0; j < bit_per_symbol; j++)
-    //             symbol |= data[i + j] << j;
-    //         funcs.emplace_back(encode(symbol), symbol_duration, "Symbol " + std::to_string(symbol));
-    //     }
-    //     return funcs;
-    // }
-
-    void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) {
+    void symbol_to_bits(Symbol symbol, std::vector<bool> &bits) {
         int bit_per_symbol = std::log2(symbol_count - 1);
         for (int i = 0; i < bit_per_symbol; i++)
             bits.push_back((symbol >> i) & 1);
     }
 
-    std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) {
+    std::vector<Symbol> bits_to_symbols(const std::vector<bool> &bits) {
         std::vector<Symbol> symbols;
         int bit_per_symbol = std::log2(symbol_count - 1);
         for (int i = 0; i < bits.size(); i += bit_per_symbol) {
@@ -135,8 +124,8 @@ public:
     std::function<float(int)> encode(Symbol symbol) {
         if (symbol > symbol_count)
             throw std::runtime_error("Error: symbol out of range");
-        
-        return [symbol, omegas=this->omegas](int i) {
+
+        return [symbol, omegas = this->omegas](int i) {
             float v = 0;
             for (int j = 0; j < omegas.size(); j++)
                 if (symbol & (1 << j))
@@ -154,7 +143,7 @@ public:
 
         for (auto i : y_)
             ofile << i << ' ';
-    
+
         ofile << '\n';
         std::vector<float> amp(omegas.size());
         /// iterate over freqs and get amplitude
@@ -185,7 +174,6 @@ public:
 };
 
 struct PhaseModem : Modem {
-    
 
     // struct Symbol {
     //     uint8_t data;
@@ -263,7 +251,7 @@ struct PhaseModem : Modem {
             omega_phase_pairs.emplace_back(omegas[i], phases[symbol % phases.size()]);
             symbol /= phases.size();
         }
-        omega_phase_pairs.emplace_back(omegas.back(), 0);
+        omega_phase_pairs.emplace_back(omegas.back(), 0.f);
 
         return [omega_phase_pairs](int i) {
             float v = 0;
@@ -302,23 +290,19 @@ struct PhaseModem : Modem {
     }
 
 
-
-    
 };
 
 class SimpleModem : public Modem {
 
     int carrierSize;
 
-    std::vector<float> carrier_sin; 
-    std::vector<float> carrier_cos;
+    std::vector<float> carrier_sin, carrier_cos;
     #ifdef LOG
         std::ofstream ofile { "SimpleModem.txt" };
     #endif
 public:
     SimpleModem(int carrierSize)
-        : Modem(carrierSize, 2), carrierSize(carrierSize)
-    { 
+        : Modem(carrierSize, 2), carrierSize(carrierSize) {
         carrier_sin.reserve(carrierSize);
         carrier_cos.reserve(carrierSize);
         for (int i = 0; i < carrierSize; i++) {
@@ -357,10 +341,10 @@ public:
             return -2;
     }
 
-    void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) override {
+    void symbol_to_bits(Symbol symbol, std::vector<bool> &bits) override {
         bits.push_back(symbol);
     }
-    std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) override {
+    std::vector<Symbol> bits_to_symbols(const std::vector<bool> &bits) override {
         std::vector<Symbol> symbols(bits.size());
         for (int i = 0; i < bits.size(); i++)
             symbols[i] = bits[i];
@@ -401,31 +385,31 @@ public:
         : QAMModem(config.omega, config.duration, config.butter, config.order) { }
 
     QAMModem(float omega, int duration, Signals::Butter<float> butter, int order = 2)
-        : Modem(duration, order * order), omega(omega), order(order), symbols([](int order){
+        : Modem(duration, order *order), omega(omega), order(order), symbols([](int order) {
             if (order > 1) {
                 auto phase = std::vector<std::complex<float>>(order * order);
                 for (int i = 0; i < order; i++)
                     for (int j = 0; j < order; j++) {
-                        phase[i * order + j] = std::complex<float> (
+                        phase[i * order + j] = std::complex<float>(
                             (2. * j / (order - 1) - 1),
                             (2. * i / (order - 1) - 1)
                         ) / std::sqrt(2.f);
                         std::cout << i * order + j << " (" << phase[i * order + j].real() << ", " << phase[i * order + j].imag() << ")\n";
                     }
                 return phase;
-            } else {
+            }
+            else {
                 return std::vector<std::complex<float>> { 1, -1 };
             }
         }(order)), butter(butter) { }
 
-    
+
     std::function<float(int)> encode(Symbol symbol) override {
         if (symbol > symbol_count)
             throw std::runtime_error("Error: symbol out of range");
-        
-        return [omega=this->omega, phase=symbols[symbol]](int i) {
+        return [omega = this->omega, phase = symbols[symbol]](int i) {
             auto p = 2 * std::numbers::pi * omega * i;
-            return phase.real() * std::cos(p) + phase.imag() * std::sin(p);
+            return float(phase.real() * std::cosf(p) + phase.imag() * std::sinf(p));
         };
     }
 
@@ -434,7 +418,7 @@ public:
 
     float standard_amplitude = 1;
     Symbol decode(std::span<float> y) override {
-        
+
         auto filtered = butter.filter(y);
         // auto filtered = y;
 
@@ -455,8 +439,8 @@ public:
 
         float a = 0, b = 0;
         for (auto i = i_begin; i < i_end; i++) {
-            a += filtered[i+offset] * std::cos(2 * std::numbers::pi * omega * i);
-            b += filtered[i+offset] * std::sin(2 * std::numbers::pi * omega * i);
+            a += filtered[i + offset] * std::cosf(2 * std::numbers::pi * omega * i);
+            b += filtered[i + offset] * std::sinf(2 * std::numbers::pi * omega * i);
         }
 
         a /= i_end - i_begin;
@@ -468,7 +452,7 @@ public:
             auto phase = std::atan2(b, a);
             if (phase < 0)
                 phase += 2 * std::numbers::pi;
-            phase_offset = std::round(phase / (2 * std::numbers::pi * omega));
+            phase_offset = int(std::round(phase / (2 * std::numbers::pi * omega)));
             // std::cout << "(Receiver) Set offset: " << *phase_offset << '\n';
             return -1;
         }
@@ -481,10 +465,10 @@ public:
 
         int i, j;
 
-        if (order==1) {
+        if (order == 1) {
             return a < 0;
         }
-        else if (order==2) {
+        else if (order == 2) {
             if (a < 0 && b < 0)
                 i = 0, j = 0;
             else if (a < 0 && b > 0)
@@ -493,7 +477,8 @@ public:
                 i = 1, j = 0;
             else if (a > 0 && b > 0)
                 i = 1, j = 1;
-        } else {
+        }
+        else {
             a *= std::sqrt(2);
             b *= std::sqrt(2);
             i = std::round((a + 1) * (order - 1) / 2);
@@ -503,13 +488,13 @@ public:
         return i + j * order;
     }
 
-    
+
     virtual Generator<float> create_calibrate() override {
-        return {[omega=this->omega](int i) { return std::cos(2 * std::numbers::pi * omega * i); }, symbol_duration, "Modem Calibrate"};
+        return { [omega = this->omega](int i) { return std::cosf(2 * std::numbers::pi * omega * i); }, symbol_duration, "Modem Calibrate" };
     }
 
 
-    void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) override {
+    void symbol_to_bits(Symbol symbol, std::vector<bool> &bits) override {
         if (order == 1) {
             bits.push_back(symbol);
             return;
@@ -519,11 +504,11 @@ public:
             bits.push_back((symbol >> i) & 1);
     }
 
-    std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) override {
+    std::vector<Symbol> bits_to_symbols(const std::vector<bool> &bits) override {
         std::vector<Symbol> symbols;
         if (order == 1) {
             symbols.reserve(bits.size());
-            for (auto b: bits) 
+            for (auto b : bits)
                 symbols.push_back(b);
             return symbols;
         }
@@ -553,9 +538,9 @@ struct DigitalModem : Modem {
     DigitalModem(int symbol_duration) : Modem(symbol_duration, 3) { }
     std::function<float(int)> encode(Symbol symbol) override {
         if (symbol == 0)
-            return [](int i) { return 1; };
+            return [](int i) { return 1.f; };
         else
-            return [](int i) { return -1; };
+            return [](int i) { return -1.f; };
     }
     Symbol decode(std::span<float> y) override {
         float sum = 0;
@@ -563,10 +548,10 @@ struct DigitalModem : Modem {
             sum += y[i];
         return sum > 0 ? 0 : 1;
     }
-    void symbol_to_bits(Symbol symbol, std::vector<bool>& bits) override {
+    void symbol_to_bits(Symbol symbol, std::vector<bool> &bits) override {
         bits.push_back(symbol);
     }
-    std::vector<Symbol> bits_to_symbols(const std::vector<bool>& bits) override {
+    std::vector<Symbol> bits_to_symbols(const std::vector<bool> &bits) override {
         std::vector<Symbol> symbols(bits.size());
         for (int i = 0; i < bits.size(); i++)
             symbols[i] = bits[i];
@@ -575,10 +560,9 @@ struct DigitalModem : Modem {
 
     Generator<float> create_calibrate() override {
         /// Maybe implemented later
-        return Generator<float>([](int i) { return 0; }, 0, "Modem Calibrate");
+        return { [](int i) { return 0.f; }, 0, "Modem Calibrate" };
     }
 
-    
 };
 
 

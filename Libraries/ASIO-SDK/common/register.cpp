@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <combaseapi.h>
 #include <stdio.h>
 
 typedef struct keylist

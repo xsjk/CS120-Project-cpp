@@ -470,6 +470,12 @@ enum
 //---------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------------
 
+#ifdef ASIO_EXPORTS
+#	define ASIO_API __declspec(dllexport)
+#else
+#	define ASIO_API __declspec(dllimport)
+#endif
+
 //- - - - - - - - - - - - - - - - - - - - - - - - -
 // (De-)Construction
 //- - - - - - - - - - - - - - - - - - - - - - - - -
@@ -484,7 +490,7 @@ typedef struct ASIODriverInfo
 							// (Windows: application main window handle, Mac & SGI: 0)
 } ASIODriverInfo;
 
-ASIOError ASIOInit(ASIODriverInfo *info);
+ASIO_API ASIOError ASIOInit(ASIODriverInfo *info);
 /* Purpose:
 	  Initialize the AudioStreamIO.
 	Parameter:
@@ -512,7 +518,7 @@ ASIOError ASIOInit(ASIODriverInfo *info);
 	  ASE_NoMemory, ASE_HWMalfunction are other possible error conditions
 */
 
-ASIOError ASIOExit(void);
+ASIO_API ASIOError ASIOExit(void);
 /* Purpose:
 	  Terminates the AudioStreamIO.
 	Parameter:
@@ -528,7 +534,7 @@ ASIOError ASIOExit(void);
 // Start/Stop
 //- - - - - - - - - - - - - - - - - - - - - - - - -
 
-ASIOError ASIOStart(void);
+ASIO_API ASIOError ASIOStart(void);
 /* Purpose:
 	  Start input and output processing synchronously.
 	  This will
@@ -550,7 +556,7 @@ ASIOError ASIOStart(void);
 	  to perform (that is, it is not considered a realtime trigger).
 */
 
-ASIOError ASIOStop(void);
+ASIO_API ASIOError ASIOStop(void);
 /* Purpose:
 	  Stops input and output processing altogether.
 	Parameter:
@@ -567,7 +573,7 @@ ASIOError ASIOStop(void);
 // Inquiry methods and sample rate
 //- - - - - - - - - - - - - - - - - - - - - - - - -
 
-ASIOError ASIOGetChannels(long *numInputChannels, long *numOutputChannels);
+ASIO_API ASIOError ASIOGetChannels(long *numInputChannels, long *numOutputChannels);
 /* Purpose:
 	  Returns number of individual input/output channels.
 	Parameter:
@@ -579,7 +585,7 @@ ASIOError ASIOGetChannels(long *numInputChannels, long *numOutputChannels);
 	  other parameter will be zero, and ASE_OK is returned.
 */
 
-ASIOError ASIOGetLatencies(long *inputLatency, long *outputLatency);
+ASIO_API ASIOError ASIOGetLatencies(long *inputLatency, long *outputLatency);
 /* Purpose:
 	  Returns the input and output latencies. This includes
 	  device specific delays, like FIFOs etc.
@@ -621,7 +627,7 @@ ASIOError ASIOGetLatencies(long *inputLatency, long *outputLatency);
 	  If no input/output is present ASE_NotPresent will be returned.
 */
 
-ASIOError ASIOGetBufferSize(long *minSize, long *maxSize, long *preferredSize, long *granularity);
+ASIO_API ASIOError ASIOGetBufferSize(long *minSize, long *maxSize, long *preferredSize, long *granularity);
 /* Purpose:
 	  Returns min, max, and preferred buffer sizes for input/output
 	Parameter:
@@ -642,7 +648,7 @@ ASIOError ASIOGetBufferSize(long *minSize, long *maxSize, long *preferredSize, l
 	  should be 0 in this case.
 */
 
-ASIOError ASIOCanSampleRate(ASIOSampleRate sampleRate);
+ASIO_API ASIOError ASIOCanSampleRate(ASIOSampleRate sampleRate);
 /* Purpose:
 	  Inquires the hardware for the available sample rates.
 	Parameter:
@@ -651,7 +657,7 @@ ASIOError ASIOCanSampleRate(ASIOSampleRate sampleRate);
 	  If the inquired sample rate is not supported, ASE_NoClock will be returned.
 	  If no input/output is present ASE_NotPresent will be returned.
 */
-ASIOError ASIOGetSampleRate(ASIOSampleRate *currentRate);
+ASIO_API ASIOError ASIOGetSampleRate(ASIOSampleRate *currentRate);
 /* Purpose:
 	  Get the current sample Rate.
 	Parameter:
@@ -662,7 +668,7 @@ ASIOError ASIOGetSampleRate(ASIOSampleRate *currentRate);
 	Notes:
 */
 
-ASIOError ASIOSetSampleRate(ASIOSampleRate sampleRate);
+ASIO_API ASIOError ASIOSetSampleRate(ASIOSampleRate sampleRate);
 /* Purpose:
 	  Set the hardware to the requested sample Rate. If sampleRate == 0,
 	  enable external sync.
@@ -685,7 +691,7 @@ typedef struct ASIOClockSource
 	char name[32];				// for user selection
 } ASIOClockSource;
 
-ASIOError ASIOGetClockSources(ASIOClockSource *clocks, long *numSources);
+ASIO_API ASIOError ASIOGetClockSources(ASIOClockSource *clocks, long *numSources);
 /* Purpose:
 	  Get the available external audio clock sources
 	Parameter:
@@ -718,7 +724,7 @@ ASIOError ASIOGetClockSources(ASIOClockSource *clocks, long *numSources);
 	Notes:
 */
 
-ASIOError ASIOSetClockSource(long index);
+ASIO_API ASIOError ASIOSetClockSource(long index);
 /* Purpose:
 	  Set the audio clock source
 	Parameter:
@@ -737,7 +743,7 @@ ASIOError ASIOSetClockSource(long index);
 	  is present at the selected source.
 */
 
-ASIOError ASIOGetSamplePosition (ASIOSamples *sPos, ASIOTimeStamp *tStamp);
+ASIO_API ASIOError ASIOGetSamplePosition (ASIOSamples *sPos, ASIOTimeStamp *tStamp);
 /* Purpose:
 	  Inquires the sample position/time stamp pair.
 	Parameter:
@@ -774,7 +780,7 @@ typedef struct ASIOChannelInfo
 	char name[32];			// dto
 } ASIOChannelInfo;
 
-ASIOError ASIOGetChannelInfo(ASIOChannelInfo *info);
+ASIO_API ASIOError ASIOGetChannelInfo(ASIOChannelInfo *info);
 /* Purpose:
 	  retreive information about the nature of a channel
 	Parameter:
@@ -820,7 +826,7 @@ typedef struct ASIOBufferInfo
 	void *buffers[2];			// on output: double buffer addresses
 } ASIOBufferInfo;
 
-ASIOError ASIOCreateBuffers(ASIOBufferInfo *bufferInfos, long numChannels,
+ASIO_API ASIOError ASIOCreateBuffers(ASIOBufferInfo *bufferInfos, long numChannels,
 	long bufferSize, ASIOCallbacks *callbacks);
 
 /* Purpose:
@@ -853,7 +859,7 @@ ASIOError ASIOCreateBuffers(ASIOBufferInfo *bufferInfos, long numChannels,
 	  were not enabled here.
 */
 
-ASIOError ASIODisposeBuffers(void);
+ASIO_API ASIOError ASIODisposeBuffers(void);
 /* Purpose:
 	  Releases all buffers for the device.
 	Parameter:
@@ -865,7 +871,7 @@ ASIOError ASIODisposeBuffers(void);
 	  This implies ASIOStop().
 */
 
-ASIOError ASIOControlPanel(void);
+ASIO_API ASIOError ASIOControlPanel(void);
 /* Purpose:
 	  request the driver to start a control panel component
 	  for device specific user settings. This will not be
@@ -883,7 +889,7 @@ ASIOError ASIOControlPanel(void);
 	  ASIO_Callbacks).
 */
 
-ASIOError ASIOFuture(long selector, void *params);
+ASIO_API ASIOError ASIOFuture(long selector, void *params);
 /* Purpose:
 	  various
 	Parameter:
@@ -1020,7 +1026,7 @@ typedef struct ASIOInternalBufferInfo
 } ASIOInternalBufferInfo;
 
 
-ASIOError ASIOOutputReady(void);
+ASIO_API ASIOError ASIOOutputReady(void);
 /* Purpose:
 	  this tells the driver that the host has completed processing
 	  the output buffers. if the data format required by the hardware

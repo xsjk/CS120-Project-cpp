@@ -7,6 +7,12 @@
 using namespace ASIO;
 using namespace utils;
 
+#ifdef AETHERNET_EXPORTS
+#   define AETHERNET_API __declspec(dllexport)
+#else
+#   define AETHERNET_API __declspec(dllimport)
+#endif
+
 #define DEBUG
 namespace OSI {
 
@@ -14,7 +20,7 @@ namespace OSI {
     using ByteStreamBuffer = boost::asio::streambuf;
 
 
-    class AsyncPhysicalLayer : public IOHandler<float> {
+    class AETHERNET_API AsyncPhysicalLayer : public IOHandler<float> {
 
         bool busy = false; // whether the channel is busy
         bool sending = false;

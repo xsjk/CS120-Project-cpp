@@ -4,6 +4,8 @@
 #include "wasapicallback.hpp"
 
 #include <cassert>
+#include <mutex>
+
 
 namespace WASAPI {
 

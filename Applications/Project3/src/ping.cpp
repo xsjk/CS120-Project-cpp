@@ -23,7 +23,7 @@ async def ping(std::string ip_addr) noexcept -> awaitable<std::optional<std::chr
     int n_bytes = 32;
     std::chrono::milliseconds time = 100ms;
     int ttl = 48;
-    std::cout << std::format("æ¥è‡ª {} çš„å›žå¤: å­—èŠ‚={} æ—¶é—´={} TTL={}", ip_addr, n_bytes, time, ttl) << std::endl;
+    std::cout << std::format("À´×Ô {} µÄ»Ø¸´: ×Ö½Ú={} Ê±¼ä={} TTL={}", ip_addr, n_bytes, time, ttl) << std::endl;
 
     co_return time;
 
@@ -39,7 +39,7 @@ async def ping(std::string ip_addr) noexcept -> awaitable<std::optional<std::chr
  */
 async def ping(std::string ip_addr, int number, int interval) noexcept -> awaitable<void> {
 
-    std::cout << std::format("æ­£åœ¨ Ping {} å…·æœ‰ 32 å­—èŠ‚çš„æ•°æ®:", ip_addr) << std::endl;
+    std::cout << std::format("ÕýÔÚ Ping {} ¾ßÓÐ 32 ×Ö½ÚµÄÊý¾Ý:", ip_addr) << std::endl;
 
     std::vector<std::chrono::microseconds> response_time; // in ms
     for (int i = 0; i < number; i++) {
@@ -53,10 +53,10 @@ async def ping(std::string ip_addr, int number, int interval) noexcept -> awaita
 
     std::cout << std::endl;
     std::cout << std::format(
-        "{} çš„ Ping ç»Ÿè®¡ä¿¡æ¯:\n"
-        "    æ•°æ®åŒ…: å·²å‘é€ = {}ï¼Œå·²æŽ¥æ”¶ = {}ï¼Œä¸¢å¤± = {} ({}% ä¸¢å¤±)ï¼Œ\n"
-        "å¾€è¿”è¡Œç¨‹çš„ä¼°è®¡æ—¶é—´(ä»¥æ¯«ç§’ä¸ºå•ä½):\n"
-        "    æœ€çŸ­ = {}msï¼Œæœ€é•¿ = {}msï¼Œå¹³å‡ = {}ms",
+        "{} µÄ Ping Í³¼ÆÐÅÏ¢:\n"
+        "    Êý¾Ý°ü: ÒÑ·¢ËÍ = {}£¬ÒÑ½ÓÊÕ = {}£¬¶ªÊ§ = {} ({}% ¶ªÊ§)£¬\n"
+        "Íù·µÐÐ³ÌµÄ¹À¼ÆÊ±¼ä(ÒÔºÁÃëÎªµ¥Î»):\n"
+        "    ×î¶Ì = {}ms£¬×î³¤ = {}ms£¬Æ½¾ù = {}ms",
         ip_addr,
         number, response_time.size(), number - response_time.size(),
         int((number - response_time.size()) / (double)number * 100),

@@ -1,6 +1,12 @@
 #ifndef __asiolist__
 #define __asiolist__
 
+#ifdef ASIO_EXPORTS
+#	define ASIO_API __declspec(dllexport)
+#else
+#	define ASIO_API __declspec(dllimport)
+#endif
+
 #define DRVERR			-5000
 #define DRVERR_INVALID_PARAM		DRVERR-1
 #define DRVERR_DEVICE_ALREADY_OPEN	DRVERR-2
@@ -22,7 +28,7 @@ struct asiodrvstruct
 typedef struct asiodrvstruct ASIODRVSTRUCT;
 typedef ASIODRVSTRUCT	*LPASIODRVSTRUCT;
 
-class AsioDriverList {
+class ASIO_API AsioDriverList {
 public:
 	AsioDriverList();
 	~AsioDriverList();

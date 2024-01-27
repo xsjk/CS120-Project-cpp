@@ -38,7 +38,7 @@ struct SinePreamble : Preamble {
 
     Generator<float> create() noexcept override {
         return Generator<float>(
-            [omega=this->omega](int i) { return std::sin(2 * std::numbers::pi * omega * i); },
+            [omega=this->omega](int i) { return std::sinf(2 * std::numbers::pi * omega * i); },
             duration,
             "Preamble"
         );
@@ -83,7 +83,7 @@ struct SinePreamble : Preamble {
                 butter.clean();
                 return end;
             } else {
-                preamble_end_frame = *preamble_end_frame - p.getNumSamples();
+                preamble_end_frame = int(*preamble_end_frame - p.getNumSamples());
             }
         }
         return {};

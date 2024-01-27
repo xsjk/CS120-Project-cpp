@@ -15,7 +15,7 @@ namespace ASIO {
 
     class Device;
 
-    class AudioCallbackHandler {
+    class ASIO_API AudioCallbackHandler {
     public:
         virtual void audioDeviceIOCallback(const float *const *inputChannelData, int numInputChannels,
                                         float *const *outputChannelData, int numOutputChannels,
@@ -25,7 +25,7 @@ namespace ASIO {
         virtual ~AudioCallbackHandler();
     };
 
-    class Device {
+    class ASIO_API Device {
 
         static Device *instance;
         static ASIOCallbacks callbacks;
@@ -61,7 +61,7 @@ namespace ASIO {
     };
 
 
-    class AudioDevice : public Device {
+    class ASIO_API AudioDevice : public Device {
 
         std::vector<float> buffer;
         std::vector<float *> inBuffers, outBuffers, tmpBuffers;

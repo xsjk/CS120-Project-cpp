@@ -8,9 +8,7 @@
 #include <atomic>
 #include <vector>
 #include <functional>
-
-#include <initguid.h>
-#include <minwindef.h>
+#include <format>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <avrt.h>
@@ -23,9 +21,7 @@ namespace WASAPI {
     public:
         HRESULT code;
         Exception(HRESULT code, std::string file, int line) : code { code } {
-            char s[128];
-            std::sprintf(s, "0x%08x at %s:%d", code, file.c_str(), line);
-            msg = std::string(s);
+            msg = std::format("0x{:08x} at {}:{}", code, file, line);
         }
         const char *what() const noexcept override { return msg.c_str(); }
     };
@@ -289,7 +285,7 @@ namespace WASAPI {
         /* IMMDevice::Activate */
         auto get_client(DWORD dwClsCtx = CLSCTX_ALL, PROPVARIANT *pActivationParams = nullptr) {
             IAudioClient *pAudioClient = nullptr;
-            CATCH_ERROR(p->Activate(IID_IAudioClient, dwClsCtx, pActivationParams, (void **)&pAudioClient));
+            CATCH_ERROR(p->Activate(__uuidof(IAudioClient), dwClsCtx, pActivationParams, (void **)&pAudioClient));
             return AudioClient(pAudioClient);
         }
 
@@ -322,7 +318,7 @@ namespace WASAPI {
     class DeviceEnumerator : public Interface<IMMDeviceEnumerator> {
     public:
         DeviceEnumerator() {
-            CATCH_ERROR(CoCreateInstance(CLSID_MMDeviceEnumerator, nullptr, CLSCTX_ALL, IID_IMMDeviceEnumerator, (LPVOID *)(&p)));
+            CATCH_ERROR(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (LPVOID *)(&p)));
         }
 
         /* IMMDeviceEnumerator::GetDevice */

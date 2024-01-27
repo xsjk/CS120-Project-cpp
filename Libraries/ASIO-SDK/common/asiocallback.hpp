@@ -67,7 +67,7 @@ namespace ASIO {
     };
 
     template<typename V>
-    struct IOHandler : AudioIOHandler<int, V> {
+    struct ASIO_API IOHandler : AudioIOHandler<int, V> {
         virtual void inputCallback(const AudioDataProxy<int, V> &inputData) noexcept {
             inputCallback(reinterpret_cast<const DataView<V> &>(inputData));
         }

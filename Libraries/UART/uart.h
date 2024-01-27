@@ -7,8 +7,13 @@
 #include <thread>
 #include <queue>
 
+#ifdef UART_EXPORTS
+#   define UART_API __declspec(dllexport)
+#else
+#   define UART_API __declspec(dllimport)
+#endif
 
-class BitstreamDevice : public ASIO::Device {
+class UART_API BitstreamDevice : public ASIO::Device {
     std::vector<bool> inputChannelDataBool;
     std::vector<bool> outputChannelDataBool;
 
@@ -29,7 +34,7 @@ enum class Parity {
 };
 
 
-class UARTDevice : public BitstreamDevice {
+class UART_API UARTDevice : public BitstreamDevice {
     std::queue<bool> rxBuffer;
     std::queue<bool> txBuffer;
     std::mutex rxLock;

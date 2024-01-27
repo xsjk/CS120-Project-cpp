@@ -62,7 +62,7 @@ int main() {
     }
 
     for (auto i = 0; i < carrierSize; i++) {
-        carrier.emplace_back(std::sin(2*std::numbers::pi*2345*i/(carrierSize-1)));
+        carrier.emplace_back(std::sinf(2*std::numbers::pi*2345*i/(carrierSize-1)));
     }
 
     bool dataBit;
@@ -73,7 +73,7 @@ int main() {
 // ------------------ generate the signal to send -----------------
     for (auto i = 0; i < sData.size(); i+=packetBits) {
         for (auto j = 0; j < interSize; j++) {
-            sSignal.emplace_back(0);
+            sSignal.emplace_back(0.f);
         }
         for (auto j = 0; j < preamble.size(); j++) {
             sSignal.emplace_back(preamble[j]);
@@ -84,7 +84,7 @@ int main() {
             }
         }
         for (auto j = 0; j < interSize; j++) {
-            sSignal.emplace_back(0);
+            sSignal.emplace_back(0.f);
         }
     }
 // ----------------------------------------------------------------

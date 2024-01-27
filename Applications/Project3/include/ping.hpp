@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <valarray>
 #include <array>
-#include "sec_api/tchar_s.h"
 #include "pcap/pcap.h"
 #include <cstdint>
 #include <concepts>
