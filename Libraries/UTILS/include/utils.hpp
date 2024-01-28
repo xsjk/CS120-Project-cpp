@@ -382,36 +382,8 @@ namespace utils {
 
     };
 
-
     template <typename T>
-    std::string dynamic_typename() {
-        #if defined(_MSC_VER)
-            return typeid(T).name();
-        #elif defined(__clang__) || defined(__GNUC__)
-            const char *mangledName = typeid(T).name();
-            int status = -1;
-
-            // __cxa_demangle allocates memory for the demangled name using malloc
-            // and returns it. We need to free this memory ourselves.
-            std::unique_ptr<char, void (*)(void *)> demangledName(
-                abi::__cxa_demangle(mangledName, nullptr, nullptr, &status),
-                std::free
-            );
-
-            // If demangling is successful, status is set to 0
-            if (status == 0 && demangledName)
-                return demangledName.get();
-            else
-                return mangledName;
-        #endif
-    }
-
-    std::string dynamic_typename(auto &&t) {
-        return dynamic_typename<decltype(t)>();
-    }
-
-    template <typename T>
-    constexpr auto static_typename() {
+    constexpr auto get_type_name() {
         using namespace std::string_view_literals;
         #if defined(__clang__) || defined(__GNUC__)
             constexpr auto prefix = "T = "sv;
@@ -428,8 +400,8 @@ namespace utils {
         return function.substr(start, function.rfind(suffix) - start);
     }
 
-    std::string_view static_typename(auto &&t) {
-        return static_typename<decltype(t)>();
+    std::string_view get_type_name(auto &&t) {
+        return get_type_name<decltype(t)>();
     }
 
 
