@@ -17,17 +17,27 @@
 template<typename T>
 auto read_binary(const std::string &filename) {
     std::vector<T> data;
-    std::ifstream file(filename, std::ios::binary);
+    std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file) {
         std::cerr << "Failed to open file\n";
         return data;
     }
 
-    T value;
-    while (file.read((char*)(&value), sizeof(T)))
-        data.push_back(value);
-    file.close();
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
 
+    if (size % sizeof(T) != 0) {
+        std::cerr << "File size is not a multiple of element size\n";
+        return data;
+    }
+
+    data.resize(size / sizeof(T));
+    if (!file.read((char*)(data.data()), size)) {
+        std::cerr << "Failed to read file\n";
+        data.clear();
+    }
+
+    file.close();
     return data;
 }
 
@@ -80,7 +90,7 @@ int main(int argc, char ** argv) {
 
     argparse::ArgumentParser program("test");
     program.add_argument("-a", "--amplifier").default_value("10.0");
-    program.add_argument("-p", "--path").default_value("");
+    program.add_argument("-p", "--path").default_value("audio.bin");
     program.add_argument("-s", "--sample_rate").default_value("44100.0");
     program.add_argument("-t", "--duration").default_value("0");
 
@@ -108,15 +118,21 @@ int main(int argc, char ** argv) {
 
     playCallback->data = read_binary<float>(path);
 
-    using namespace std::chrono_literals;
+    std::function<void()> pause;
+    if (duration == 0) {
+        pause = []() {
+            std::puts("press enter to continue...");
+            std::cin.get();
+        };
+    } else {
+        pause = [duration]() {
+            std::this_thread::sleep_for(std::chrono::seconds(duration));
+        };
+    }
 
     asio.start(recordCallback);
     asio.start(playCallback);
-    if (duration == 0)
-        std::cin.get();
-    else
-        std::this_thread::sleep_for(duration * 1s);
-
+    pause();
     asio.stop(recordCallback);
     asio.stop(playCallback);
 
@@ -125,10 +141,7 @@ int main(int argc, char ** argv) {
     playCallback->amp = amp;
 
     asio.start(playCallback);
-    if (duration == 0)
-        std::cin.get();
-    else
-        std::this_thread::sleep_for(duration * 1s);
+    pause();
     asio.stop(playCallback);
 
     return 0;
